@@ -1,5 +1,8 @@
 package net.sneakymouse.sneakyvaults;
 
+import net.sneakymouse.sneakyvaults.commands.player.CommandOpenVault;
+import net.sneakymouse.sneakyvaults.events.InventoryListener;
+import net.sneakymouse.sneakyvaults.managers.VaultManager;
 import org.bukkit.permissions.Permission;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -14,11 +17,14 @@ public class SneakyVaults extends JavaPlugin {
 
     public File playerDataFolder;
 
+    public VaultManager vaultManager;
+
     @Override
     public void onEnable() {
         LOGGER = this.getLogger();
         instance = this;
 
+        //Data Setup
         if(!this.getDataFolder().exists())
             if(!this.getDataFolder().mkdir())
                 LOGGER.severe("Failed to create Plugin Data folder!");
@@ -36,14 +42,28 @@ public class SneakyVaults extends JavaPlugin {
             //Possible Inventory Sizes: 9, 18, 27, 36, 45, 54
             getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".slots." + 9*i));
         }
+        getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".max.tier0"));
+        getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".max.tier1"));
+        getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".max.tier2"));
+        getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".max.tier3"));
 
 
         saveDefaultConfig();
 
+        //Load Managers
+        vaultManager = new VaultManager();
+
+        //Loading Commands
+        getServer().getCommandMap().register(IDENTIFIER, new CommandOpenVault());
+
+        //Loading Events
+        getServer().getPluginManager().registerEvents(new InventoryListener(), this);
     }
 
     @Override
-    public void onDisable() {}
+    public void onDisable() {
+        vaultManager.saveAllVaults();
+    }
 
     public static SneakyVaults getInstance(){
         return instance;

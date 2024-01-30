@@ -22,7 +22,7 @@ public class PlayerVault implements InventoryHolder {
 
     private final File playerConfigFile;
 
-    public PlayerVault(String playerUUID, int size, int vaultNumber) throws IOException {
+    public PlayerVault(String playerUUID, int size, int vaultNumber, boolean force) throws IOException {
         this.playerUUID = playerUUID;
         this.inventory = Bukkit.createInventory(this, size, ChatUtility.convertToComponent("&ePlayer Vault"));
         this.vaultNumber = vaultNumber;
@@ -46,7 +46,8 @@ public class PlayerVault implements InventoryHolder {
         configuration.save(playerConfigFile);
 
         try {
-            loadFromConfig();
+            if(!force)
+                loadFromConfig();
         } catch(IOException e){
             e.printStackTrace();
             SneakyVaults.LOGGER.severe("Failed to create player config file!");

@@ -7,7 +7,7 @@ import org.jetbrains.annotations.NotNull;
 
 public abstract class CommandAdminBase extends Command {
 
-    protected CommandAdminBase(@NotNull String name) {
+    public CommandAdminBase(@NotNull String name) {
         super(name);
         this.setPermission(SneakyVaults.IDENTIFIER + ".admin." + this.getName());
     }
