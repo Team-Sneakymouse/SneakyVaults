@@ -42,19 +42,10 @@ public class VaultManager {
     public int getMaxAllowedVaults(String playerUUID){
         Player player = Bukkit.getPlayer(UUID.fromString(playerUUID));
         if(player == null) return -1;
-
-        if(player.hasPermission(IDENTIFIER + ".max.tier3")){
-            return SneakyVaults.getInstance().getConfig().getInt("max_vault_permissions.tier3");
-        } else if(player.hasPermission(IDENTIFIER + ".max.tier2")){
-            return SneakyVaults.getInstance().getConfig().getInt("max_vault_permissions.tier2");
-        }
-        if(player.hasPermission(IDENTIFIER + ".max.tier1")){
-            return SneakyVaults.getInstance().getConfig().getInt("max_vault_permissions.tier1");
-        }
-        if(player.hasPermission(IDENTIFIER + ".max.tier0")){
-            return SneakyVaults.getInstance().getConfig().getInt("max_vault_permissions.tier0");
-        }
-        return 0;
+        return player.getEffectivePermissions().stream().filter(p -> p.getPermission().startsWith(IDENTIFIER + ".max.")).map(p -> {
+            var split = p.getPermission().split("\\.");
+            return Integer.parseInt(split[split.length - 1]);
+        }).max(Integer::compare).orElse(0);
     }
 
     public int getMaxVaultSize(String playerUUID){

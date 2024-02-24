@@ -42,11 +42,6 @@ public class SneakyVaults extends JavaPlugin {
             //Possible Inventory Sizes: 9, 18, 27, 36, 45, 54
             getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".slots." + 9*i));
         }
-        getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".max.tier0"));
-        getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".max.tier1"));
-        getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".max.tier2"));
-        getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".max.tier3"));
-
 
         saveDefaultConfig();
 
