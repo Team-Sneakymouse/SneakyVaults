@@ -85,15 +85,46 @@ public class PlayerVault implements InventoryHolder {
             vaults = configuration.createSection("player_vaults");
         }
 
-        String itemEncoded = InventoryUtility.inventoryToBase64(this.getInventory());
+        String itemEncoded = InventoryUtility.inventoryToBase64(this.getInventory(false));
         vaults.set("" + this.vaultNumber, itemEncoded);
 
         configuration.save(playerConfigFile);
     }
 
+    public void fixInventorySize(){
+        int maxSize = SneakyVaults.getInstance().vaultManager.getMaxVaultSize(this.playerUUID);
+        if(maxSize > this.inventory.getSize()){
+
+            ItemStack[] items = this.inventory.getContents();
+            this.inventory = Bukkit.createInventory(this, maxSize, ChatUtility.convertToComponent("&ePlayer Vault"));
+
+            for(int i = 0; i < items.length; i++){
+                ItemStack item = items[i];
+                if(item == null) continue;
+                this.inventory.setItem(i, item);
+            }
+        }
+
+        try {
+            saveVault();
+        } catch(IOException ignored) {}
+    }
+
     public String getOwner(){ return this.playerUUID; }
     @Override
     public @NotNull Inventory getInventory() {
+        return this.getInventory(true);
+    }
+
+    public @NotNull Inventory getInventory(boolean fix) {
+
+        try{
+            if(fix){
+                loadFromConfig();
+                fixInventorySize();
+            }
+        } catch(IOException ignored){}
+
         return this.inventory;
     }
 }
