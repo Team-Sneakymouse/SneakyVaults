@@ -1,3 +1,5 @@
 main: net.sneakymouse.sneakyvaults.SneakyVaults
 version: 1.0
 name: SneakyVaults
+authors:
+  - Bungo
