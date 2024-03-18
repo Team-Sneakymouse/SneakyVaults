@@ -59,6 +59,15 @@ public class VaultManager {
         return -1;
     }
 
+    public @Nullable PlayerVault peakPlayerVault(@NotNull String playerUUID, int vaultNumber){
+        PlayerVault vault = getPlayerVault(playerUUID, vaultNumber);
+
+        //Does the player have a vault (technically creates one if allowed)
+        //Is the vault opened?
+        if(vault == null || vault.isOpened) return null;
+        return vault;
+    }
+
     public @Nullable PlayerVault getPlayerVault(@NotNull String playerUUID, int vaultNumber){
         if(vaultNumber > getMaxAllowedVaults(playerUUID) || vaultNumber < 0) return null;
 

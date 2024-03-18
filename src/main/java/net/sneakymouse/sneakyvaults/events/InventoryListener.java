@@ -17,6 +17,7 @@ public class InventoryListener implements Listener {
         if(inventory.getHolder() instanceof PlayerVault playerVault){
             try {
                 playerVault.saveVault();
+                playerVault.isOpened = false;
             } catch (IOException e){
                 SneakyVaults.LOGGER.severe("Error: Failed to save player vault! " + playerVault.getOwner());
             }

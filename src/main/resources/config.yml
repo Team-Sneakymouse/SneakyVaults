@@ -2,14 +2,3 @@
 # This config is where global player vaults will be stored!
 # You can then open these global vaults on the player & decide if they are repeatable or not in the configs
 global_vaults:
-
-#Define the max number of vaults a spesific permission can handle
-#Can be any value from: 1-10
-#The plugin will default use the max tier then work its way down.
-#(So if the player has both Tier 1 & Tier 4 it will default to Tier 3)
-#Permission Node is: sneakyvaults.max.tierX
-max_vault_permissions:
-  tier0: 1
-  tier1: 3
-  tier2: 5
-  tier3: 10

@@ -30,7 +30,12 @@ public class CommandOpenVault extends CommandBase {
                 player.sendMessage(ChatUtility.convertToComponent("&cCould not find your player vault!"));
                 return false;
             }
+            if(vault.isOpened){
+                player.sendMessage(ChatUtility.convertToComponent("&4That vault is currently opened.. Try again later."));
+                return false;
+            }
             player.openInventory(vault.getInventory());
+            vault.isOpened = true;
         }
         else if(args.length == 1){
             //ToDo: Load Vault based on supplied number!
@@ -45,7 +50,12 @@ public class CommandOpenVault extends CommandBase {
                     player.sendMessage(ChatUtility.convertToComponent("&cCould not find your player vault!"));
                     return false;
                 }
+                if(vault.isOpened){
+                    player.sendMessage(ChatUtility.convertToComponent("&4That vault is currently opened.. Try again later."));
+                    return false;
+                }
                 player.openInventory(vault.getInventory());
+                vault.isOpened = true;
             } catch(NumberFormatException e){
                 player.sendMessage(ChatUtility.convertToComponent("&cInvalid Number! " + this.usageMessage));
             }

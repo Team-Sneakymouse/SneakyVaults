@@ -19,7 +19,7 @@ public class PlayerVault implements InventoryHolder {
     private final String playerUUID;
     private Inventory inventory;
     private final int vaultNumber;
-
+    public boolean isOpened = false;
     private final File playerConfigFile;
 
     public PlayerVault(String playerUUID, int size, int vaultNumber, boolean force) throws IOException {
