@@ -1,4 +1,4 @@
 # Welcome to Sneaky Vaults!
 # This config is where global player vaults will be stored!
 # You can then open these global vaults on the player & decide if they are repeatable or not in the configs
-global_vaults:
+template_vaults:

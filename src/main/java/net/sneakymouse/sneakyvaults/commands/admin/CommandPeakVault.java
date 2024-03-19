@@ -40,7 +40,7 @@ public class CommandPeakVault extends CommandAdminBase {
                 return false;
             }
         }
-        
+
 
         String playerName = args[0];
         Player target = Bukkit.getPlayer(playerName);

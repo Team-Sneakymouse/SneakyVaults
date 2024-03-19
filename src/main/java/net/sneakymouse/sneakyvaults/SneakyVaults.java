@@ -1,7 +1,10 @@
 package net.sneakymouse.sneakyvaults;
 
+import net.sneakymouse.sneakyvaults.commands.admin.CommandOpenTemplate;
 import net.sneakymouse.sneakyvaults.commands.admin.CommandPeakVault;
+import net.sneakymouse.sneakyvaults.commands.admin.CommandTemplates;
 import net.sneakymouse.sneakyvaults.commands.player.CommandOpenVault;
+import net.sneakymouse.sneakyvaults.events.EditSessionListener;
 import net.sneakymouse.sneakyvaults.events.InventoryListener;
 import net.sneakymouse.sneakyvaults.managers.VaultManager;
 import org.bukkit.permissions.Permission;
@@ -52,9 +55,12 @@ public class SneakyVaults extends JavaPlugin {
         //Loading Commands
         getServer().getCommandMap().register(IDENTIFIER, new CommandOpenVault());
         getServer().getCommandMap().register(IDENTIFIER, new CommandPeakVault());
+        getServer().getCommandMap().register(IDENTIFIER, new CommandTemplates());
+        getServer().getCommandMap().register(IDENTIFIER, new CommandOpenTemplate());
 
         //Loading Events
         getServer().getPluginManager().registerEvents(new InventoryListener(), this);
+        getServer().getPluginManager().registerEvents(new EditSessionListener(), this);
     }
 
     @Override

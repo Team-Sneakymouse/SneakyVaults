@@ -14,6 +14,9 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.io.IOException;
 
+/**
+ * Class containing major information about items, size, and the vault number of a players vault.
+ * */
 public class PlayerVault implements InventoryHolder {
 
     private final String playerUUID;
@@ -22,6 +25,13 @@ public class PlayerVault implements InventoryHolder {
     public boolean isOpened = false;
     private final File playerConfigFile;
 
+    /**
+     * Create a new player vault based off the owning players UUID.
+     * @param playerUUID UUID of the player who owns the player vault.
+     * @param size The size of the vault to be created. Must be a multiple of 9.
+     * @param vaultNumber The vault number relating to this vault.
+     * @param force Should we force create a new inventory? Set to <b>true</b> to create an empty inventory. False will load from config if exists
+     * */
     public PlayerVault(String playerUUID, int size, int vaultNumber, boolean force) throws IOException {
         this.playerUUID = playerUUID;
         this.inventory = Bukkit.createInventory(this, size, ChatUtility.convertToComponent("&ePlayer Vault"));
@@ -91,6 +101,11 @@ public class PlayerVault implements InventoryHolder {
         configuration.save(playerConfigFile);
     }
 
+    /**
+     * Fix the config inventory size.
+     * This will only run if the new size is larger than the config saved size.
+     * It will convert the inventory to expected size and place all the old items into the new inventory, then save the config.
+     * */
     public void fixInventorySize(){
         int maxSize = SneakyVaults.getInstance().vaultManager.getMaxVaultSize(this.playerUUID);
         if(maxSize > this.inventory.getSize()){
@@ -116,6 +131,10 @@ public class PlayerVault implements InventoryHolder {
         return this.getInventory(true);
     }
 
+    /**
+     * Get the playervault inventory.
+     * @param fix Should we re-set the size of the inventory.
+     * */
     public @NotNull Inventory getInventory(boolean fix) {
 
         try{

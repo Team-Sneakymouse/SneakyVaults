@@ -2,6 +2,9 @@ package net.sneakymouse.sneakyvaults.events;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
+import net.sneakymouse.sneakyvaults.types.TemplateVault;
+import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -20,6 +23,14 @@ public class InventoryListener implements Listener {
                 playerVault.isOpened = false;
             } catch (IOException e){
                 SneakyVaults.LOGGER.severe("Error: Failed to save player vault! " + playerVault.getOwner());
+            }
+        }
+        else if(inventory.getHolder() instanceof TemplateVault templateVault){
+            if(templateVault.isEditMode()){
+                templateVault.endEditMode(event.getInventory());
+                event.getPlayer().sendMessage(ChatUtility.convertToComponent("&aEdit session ended! Inventory saved to config!"));
+            }else{
+                templateVault.onClosed((Player) event.getPlayer(), event.getInventory());
             }
         }
     }
