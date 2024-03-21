@@ -7,7 +7,6 @@ import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.jetbrains.annotations.NotNull;
@@ -90,13 +89,13 @@ public class VaultManager {
     }
 
     /**
-     * Peak another players vault. Technically not required other then checking if the vault is opened already
+     * Peek another players vault. Technically not required other than checking if the vault is opened already
      * @param playerUUID UUID of the player to get the vault of
      * @param vaultNumber Number of the vault to get.
      * @return PlayerVault object or null if no vault exist or a vault is opened.
      * @see PlayerVault
      * */
-    public @Nullable PlayerVault peakPlayerVault(@NotNull String playerUUID, int vaultNumber){
+    public @Nullable PlayerVault peekPlayerVault(@NotNull String playerUUID, int vaultNumber){
         PlayerVault vault = getPlayerVault(playerUUID, vaultNumber);
 
         //Does the player have a vault (technically creates one if allowed)

@@ -5,21 +5,20 @@ import net.sneakymouse.sneakyvaults.commands.CommandAdminBase;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
 import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
 import org.bukkit.Bukkit;
-import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 
-public class CommandPeakVault extends CommandAdminBase {
+public class CommandPeekVault extends CommandAdminBase {
 
 
-    public CommandPeakVault() {
-        super("peakvault");
+    public CommandPeekVault() {
+        super("peekvault");
         this.description = "Take a look into a players vault";
-        this.usageMessage = "/peakvault <Player> [vault number]";
-        this.setAliases(List.of("peak", "peakv", "vaultsee", "vsee"));
+        this.usageMessage = "/peekvault <Player> [vault number]";
+        this.setAliases(List.of("peek", "peekv", "vaultsee", "vsee"));
     }
 
     @Override
@@ -70,7 +69,8 @@ public class CommandPeakVault extends CommandAdminBase {
         }
 
         String targetUUID = target.getUniqueId().toString();
-        PlayerVault vault = SneakyVaults.getInstance().vaultManager.peakPlayerVault(targetUUID, vaultNumber);
+        PlayerVault vault = SneakyVaults.getInstance().vaultManager.peekPlayerVault(targetUUID, vaultNumber);
+
 
         if(vault == null){
             player.sendMessage(ChatUtility.convertToComponent("&4Error. Could not get vault. The player cannot have that many vaults || The player has the vault opened."));
