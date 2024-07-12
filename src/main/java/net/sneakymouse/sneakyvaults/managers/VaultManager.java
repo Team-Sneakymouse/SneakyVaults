@@ -53,10 +53,11 @@ public class VaultManager {
      * @param playerUUID UUID of the player to check vaults of
      * @return The size of the player vault count
      * */
+    /*
     public int getLastVault(String playerUUID){
         Map<Integer, PlayerVault> vaults = playerVaults.getOrDefault(playerUUID, new HashMap<>());
         return vaults.size();
-    }
+    }*/
 
     /**
      * Get the max number of allowed vaults a player has permission to own.
@@ -117,11 +118,11 @@ public class VaultManager {
 
         if(!playerVaults.containsKey(playerUUID)) {
             Map<Integer, PlayerVault> vaults = new HashMap<>();
-            if(getMaxAllowedVaults(playerUUID) > getLastVault(playerUUID)){
+            if(getMaxAllowedVaults(playerUUID) > vaultNumber){
                 if(getMaxVaultSize(playerUUID) >= 9){
-                    PlayerVault vault = createVault(playerUUID, getMaxVaultSize(playerUUID));
+                    PlayerVault vault = createVault(playerUUID, getMaxVaultSize(playerUUID), vaultNumber);
                     if(vault == null) return null;
-                    vaults.put(getLastVault(playerUUID), vault);
+                    vaults.put(vaultNumber, vault);
                     playerVaults.put(playerUUID, vaults);
                     return vault;
                 }
@@ -131,11 +132,11 @@ public class VaultManager {
         Map<Integer, PlayerVault> vaults = playerVaults.get(playerUUID);
         PlayerVault vault = vaults.get(vaultNumber);
         if(vault == null){
-            if(getMaxAllowedVaults(playerUUID) > getLastVault(playerUUID)){
+            if(getMaxAllowedVaults(playerUUID) > vaultNumber){
                 if(getMaxVaultSize(playerUUID) >= 9){
-                    vault = createVault(playerUUID, getMaxVaultSize(playerUUID));
+                    vault = createVault(playerUUID, getMaxVaultSize(playerUUID), vaultNumber);
                     if(vault == null) return null;
-                    vaults.put(getLastVault(playerUUID), vault);
+                    vaults.put(vaultNumber, vault);
                     return vault;
                 }
             }
@@ -150,7 +151,7 @@ public class VaultManager {
      * @return PlayerVault object or null if vault creation fails.
      * @see PlayerVault
      * */
-    private @Nullable PlayerVault createVault(@NotNull String playerUUID, int size){
+    private @Nullable PlayerVault createVault(@NotNull String playerUUID, int size, int vaultNumber){
         Map<Integer, PlayerVault> vaults;
         if(!playerVaults.containsKey(playerUUID))
             vaults = new HashMap<>();
@@ -158,8 +159,8 @@ public class VaultManager {
             vaults = playerVaults.get(playerUUID);
 
         try{
-            PlayerVault vault = new PlayerVault(playerUUID, size, getLastVault(playerUUID) + 1, false);
-            vaults.put(getLastVault(playerUUID) + 1, vault);
+            PlayerVault vault = new PlayerVault(playerUUID, size, vaultNumber, false);
+            vaults.put(vaultNumber, vault);
             playerVaults.put(playerUUID, vaults);
             return vault;
         } catch(IOException e){
