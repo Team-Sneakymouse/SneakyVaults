@@ -13,6 +13,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Class containing major information about items, size, and the vault number of a players vault.
@@ -70,20 +71,39 @@ public class PlayerVault implements InventoryHolder {
 
         if(vaults == null) return;
 
-        String vaultInventory = vaults.getString("" + vaultNumber);
-        if(vaultInventory == null) return;
+        if(vaults.getBoolean(vaultNumber + ".paperConverted")) {
+            List<String> vaultItems = vaults.getStringList(vaultNumber + ".items");
 
-        ItemStack[] items = InventoryUtility.getSavedInventory(vaultInventory);
-        if(items.length > this.inventory.getSize()) {
-            SneakyVaults.LOGGER.warning("Saved inventory is larger then localized inventory size? This is strange but will be fixed!");
-            if(items.length % 9 != 0) {
-                SneakyVaults.LOGGER.severe("Error: Saved inventory size is not a multiple of 9. This should be impossible!");
-                return;
+            List<ItemStack> items = InventoryUtility.inventoryPaperFromBase64(vaultItems);
+            ItemStack[] itemStacks = items.toArray(new ItemStack[0]);
+
+            if(itemStacks.length > this.inventory.getSize()) {
+                SneakyVaults.LOGGER.warning("Saved inventory is larger then localized inventory size? This is strange but will be fixed!");
+                if(itemStacks.length % 9 != 0) {
+                    SneakyVaults.LOGGER.severe("Error: Saved inventory size is not a multiple of 9. This should be impossible!");
+                    return;
+                }
+                this.inventory = Bukkit.createInventory(this, itemStacks.length, ChatUtility.convertToComponent("&ePlayer Vault"));
             }
-            this.inventory = Bukkit.createInventory(this, items.length, ChatUtility.convertToComponent("&ePlayer Vault"));
-        }
 
-        this.inventory.setContents(items);
+            this.inventory.setContents(itemStacks);
+        }
+        else {
+            String vaultInventory = vaults.getString("" + vaultNumber);
+            if(vaultInventory == null) return;
+
+            ItemStack[] items = InventoryUtility.getSavedInventory(vaultInventory);
+            if(items.length > this.inventory.getSize()) {
+                SneakyVaults.LOGGER.warning("Saved inventory is larger then localized inventory size? This is strange but will be fixed!");
+                if(items.length % 9 != 0) {
+                    SneakyVaults.LOGGER.severe("Error: Saved inventory size is not a multiple of 9. This should be impossible!");
+                    return;
+                }
+                this.inventory = Bukkit.createInventory(this, items.length, ChatUtility.convertToComponent("&ePlayer Vault"));
+            }
+
+            this.inventory.setContents(items);
+        }
 
         configuration.save(playerConfigFile);
     }
@@ -95,8 +115,9 @@ public class PlayerVault implements InventoryHolder {
             vaults = configuration.createSection("player_vaults");
         }
 
-        String itemEncoded = InventoryUtility.inventoryToBase64(this.getInventory(false));
-        vaults.set("" + this.vaultNumber, itemEncoded);
+        List<String> itemEncoded = InventoryUtility.inventoryPaperToBase64(this.getInventory(false));
+        vaults.set(this.vaultNumber  + ".items", itemEncoded);
+        vaults.set(this.vaultNumber + ".paperConverted", true);
 
         configuration.save(playerConfigFile);
     }

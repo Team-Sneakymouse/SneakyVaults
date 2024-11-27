@@ -1,5 +1,6 @@
 package net.sneakymouse.sneakyvaults.utlitiy;
 
+import org.bukkit.Material;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.io.BukkitObjectInputStream;
@@ -9,6 +10,9 @@ import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
 
 public class InventoryUtility {
     /**
@@ -43,6 +47,53 @@ public class InventoryUtility {
 
         return new ItemStack[0];
     }
+
+
+    /**
+     * Convert an inventory into a B64 String.
+     * This method uses Paper's Serialization
+     * (Note: This will only convert the inventory contents, not types or names)
+     * @param inventory Inventory to convert
+     * @return B64 Encoded inventory string
+     * */
+    public static List<String> inventoryPaperToBase64(Inventory inventory) {
+        List<String> result = new ArrayList<>();
+
+        for(ItemStack itemStack : inventory.getContents()) {
+            if(itemStack == null) {
+                result.add("");
+            }
+            else {
+                result.add(Base64.getEncoder().encodeToString(itemStack.serializeAsBytes()));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Get the Inventory from the B64 String (Will have a generic name)
+     * This method uses the Paper byte serialization
+     * @param data B64 string to decode into an ItemStack[]
+     * @return Inventory created from the encoded data
+     * */
+    public static List<ItemStack> inventoryPaperFromBase64(List<String> data) {
+
+        List<ItemStack> result = new ArrayList<>();
+
+        for(String s : data) {
+            ItemStack itemStack;
+            if(s.isEmpty()){
+                itemStack = new ItemStack(Material.AIR);
+            } else {
+                itemStack = ItemStack.deserializeBytes(Base64Coder.decode(s));
+            }
+            result.add(itemStack);
+        }
+
+        return result;
+    }
+
 
     /**
      * Convert an inventory into a B64 String.
