@@ -5,9 +5,11 @@ import net.sneakymouse.sneakyvaults.commands.admin.CommandPeekVault;
 import net.sneakymouse.sneakyvaults.commands.admin.CommandTemplates;
 import net.sneakymouse.sneakyvaults.commands.admin.CommandForceConversion;
 import net.sneakymouse.sneakyvaults.commands.player.CommandOpenVault;
+import net.sneakymouse.sneakyvaults.events.CoreProtectLoggerEvents;
 import net.sneakymouse.sneakyvaults.events.EditSessionListener;
 import net.sneakymouse.sneakyvaults.events.InventoryListener;
 import net.sneakymouse.sneakyvaults.managers.VaultManager;
+import org.bukkit.Bukkit;
 import org.bukkit.permissions.Permission;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -63,6 +65,9 @@ public class SneakyVaults extends JavaPlugin {
         //Loading Events
         getServer().getPluginManager().registerEvents(new InventoryListener(), this);
         getServer().getPluginManager().registerEvents(new EditSessionListener(), this);
+
+        if(Bukkit.getServer().getPluginManager().isPluginEnabled("CoreProtect"))
+            getServer().getPluginManager().registerEvents(new CoreProtectLoggerEvents(), this);
     }
 
     @Override

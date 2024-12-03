@@ -4,8 +4,10 @@ import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
 import net.sneakymouse.sneakyvaults.utlitiy.InventoryUtility;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
@@ -14,6 +16,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Class containing major information about items, size, and the vault number of a players vault.
@@ -166,5 +169,15 @@ public class PlayerVault implements InventoryHolder {
         } catch(IOException ignored){}
 
         return this.inventory;
+    }
+
+    public Location getDummyLocation() {
+        Player player = Bukkit.getPlayer(UUID.fromString(this.playerUUID));
+        if(player == null) return null;
+        return new Location(
+                player.getWorld(),
+                0,
+                0,
+                this.vaultNumber);
     }
 }
