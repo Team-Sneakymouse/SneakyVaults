@@ -1,9 +1,6 @@
 package net.sneakymouse.sneakyvaults;
 
-import net.sneakymouse.sneakyvaults.commands.admin.CommandOpenTemplate;
-import net.sneakymouse.sneakyvaults.commands.admin.CommandPeekVault;
-import net.sneakymouse.sneakyvaults.commands.admin.CommandTemplates;
-import net.sneakymouse.sneakyvaults.commands.admin.CommandForceConversion;
+import net.sneakymouse.sneakyvaults.commands.admin.*;
 import net.sneakymouse.sneakyvaults.commands.player.CommandOpenVault;
 import net.sneakymouse.sneakyvaults.events.CoreProtectLoggerEvents;
 import net.sneakymouse.sneakyvaults.events.EditSessionListener;
@@ -61,6 +58,7 @@ public class SneakyVaults extends JavaPlugin {
         getServer().getCommandMap().register(IDENTIFIER, new CommandTemplates());
         getServer().getCommandMap().register(IDENTIFIER, new CommandOpenTemplate());
         getServer().getCommandMap().register(IDENTIFIER, new CommandForceConversion());
+        getServer().getCommandMap().register(IDENTIFIER, new CommandSearchVault());
 
         //Loading Events
         getServer().getPluginManager().registerEvents(new InventoryListener(), this);
