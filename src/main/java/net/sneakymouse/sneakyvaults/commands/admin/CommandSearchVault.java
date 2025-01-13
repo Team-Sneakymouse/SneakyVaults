@@ -1,6 +1,7 @@
 package net.sneakymouse.sneakyvaults.commands.admin;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandAdminBase;
@@ -23,6 +24,41 @@ public class CommandSearchVault extends CommandAdminBase {
 
     private static final Logger log = LoggerFactory.getLogger(CommandSearchVault.class);
     private final File vaultData;
+
+
+    public static class SearchResultData {
+        private String playerUUID;
+        private int vaultNumber;
+        private String message;
+
+
+        public SearchResultData(final String playerUUID, final int vaultNumber) {
+            this.playerUUID = playerUUID;
+            this.vaultNumber = vaultNumber;
+        }
+
+        public SearchResultData(final String playerUUID, final int vaultNumber, final String message) {
+            this.playerUUID = playerUUID;
+            this.vaultNumber = vaultNumber;
+            this.message = message;
+        }
+
+        public String getPlayerUUID() {
+            return playerUUID;
+        }
+
+        public void setPlayerUUID(String playerUUID) {
+            this.playerUUID = playerUUID;
+        }
+
+        public int getVaultNumber() {
+            return vaultNumber;
+        }
+
+        public void setVaultNumber(int vaultNumber) {
+            this.vaultNumber = vaultNumber;
+        }
+    }
 
     public CommandSearchVault() {
         super("searchvault");
@@ -52,14 +88,16 @@ public class CommandSearchVault extends CommandAdminBase {
         searchPlayerVaults(
                 itemData,
                 isName,
-                (result) -> sender.sendMessage(ChatUtility.convertToComponent(result)),
+                (result) -> sender.sendMessage(ChatUtility.convertToComponent(result.message).clickEvent(ClickEvent.clickEvent(
+                        ClickEvent.Action.SUGGEST_COMMAND, "/peekvault " + result.playerUUID + " " + result.vaultNumber
+                ))),
                 () -> sender.sendMessage(ChatUtility.convertToComponent("&eFinished Searching for item!"))
         );
 
         return false;
     }
 
-    private void searchPlayerVaults(String data, boolean isName, Consumer<String> onResultfound, Runnable onComplete) {
+    private void searchPlayerVaults(String data, boolean isName, Consumer<SearchResultData> onResultfound, Runnable onComplete) {
         if(!vaultData.exists() || !vaultData.isDirectory()) {
             onComplete.run();
             return;
@@ -80,7 +118,10 @@ public class CommandSearchVault extends CommandAdminBase {
                 for(String vault : vaults.getKeys(false)) {
                     if(!vaults.getBoolean(vault + ".paperConverted")) {
                         onResultfound.accept(
-                                "Vault " + playerDataFile.getName() + " is not PaperConverted.. Skipping File!"
+                                new SearchResultData(
+                                        playerDataFile.getName().replace(".yml", ""),
+                                        Integer.parseInt(vault),
+                                        "Vault " + playerDataFile.getName() + " is not PaperConverted.. Skipping File!")
                         );
                         break;
                     }
@@ -113,8 +154,12 @@ public class CommandSearchVault extends CommandAdminBase {
 
                         if(key.toLowerCase().contains(data.toLowerCase())) {
                             Bukkit.getScheduler().runTask(SneakyVaults.getInstance(), () -> onResultfound.accept(
-                                    "&eUUID: &c" + playerDataFile.getName().replace(".yml", "")
-                                            + "&e | Vault: &6" + vault
+                                    new SearchResultData(
+                                            playerDataFile.getName().replace(".yml", ""),
+                                            Integer.parseInt(vault),
+                                            "&eUUID: &c" + playerDataFile.getName().replace(".yml", "")
+                                                    + "&e | Vault: &6" + vault
+                                    )
                             ));
                             break;
                         }

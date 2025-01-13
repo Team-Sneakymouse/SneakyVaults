@@ -114,34 +114,59 @@ public class VaultManager {
      * @see PlayerVault
      * */
     public @Nullable PlayerVault getPlayerVault(@NotNull String playerUUID, int vaultNumber){
-        if(vaultNumber > getMaxAllowedVaults(playerUUID) || vaultNumber < 0) return null;
+        int maxVaults = getMaxAllowedVaults(playerUUID);
 
-        if(!playerVaults.containsKey(playerUUID)) {
-            Map<Integer, PlayerVault> vaults = new HashMap<>();
-            if(getMaxAllowedVaults(playerUUID) > vaultNumber){
-                if(getMaxVaultSize(playerUUID) >= 9){
-                    PlayerVault vault = createVault(playerUUID, getMaxVaultSize(playerUUID), vaultNumber);
-                    if(vault == null) return null;
-                    vaults.put(vaultNumber, vault);
-                    playerVaults.put(playerUUID, vaults);
-                    return vault;
+        if(maxVaults == -1) {
+            //Player is likely offline, so like screw it just make it happen?
+            if(!playerVaults.containsKey(playerUUID)) {
+                Map<Integer, PlayerVault> vaults = new HashMap<>();
+                PlayerVault vault = createVault(playerUUID, 54, vaultNumber); //Default to max size vault
+                if(vault == null) return null;
+                vaults.put(vaultNumber, vault);
+                playerVaults.put(playerUUID, vaults);
+                return vault;
+            }
+            Map<Integer, PlayerVault> vaults = playerVaults.get(playerUUID);
+            PlayerVault vault = vaults.get(vaultNumber);
+            if(vault == null){
+                vault = createVault(playerUUID, 54, vaultNumber);
+                if(vault == null) return null;
+                vaults.put(vaultNumber, vault);
+                return vault;
+            }
+            return vault;
+        }
+        else {
+            if(vaultNumber > maxVaults) return null;
+            if(!playerVaults.containsKey(playerUUID)) {
+                Map<Integer, PlayerVault> vaults = new HashMap<>();
+                if(maxVaults > vaultNumber){
+                    if(getMaxVaultSize(playerUUID) >= 9){
+                        PlayerVault vault = createVault(playerUUID, getMaxVaultSize(playerUUID), vaultNumber);
+                        if(vault == null) return null;
+                        vaults.put(vaultNumber, vault);
+                        playerVaults.put(playerUUID, vaults);
+                        return vault;
+                    }
+                }
+                return null;
+            }
+
+            Map<Integer, PlayerVault> vaults = playerVaults.get(playerUUID);
+            PlayerVault vault = vaults.get(vaultNumber);
+            if(vault == null){
+                if(getMaxAllowedVaults(playerUUID) > vaultNumber){
+                    if(getMaxVaultSize(playerUUID) >= 9){
+                        vault = createVault(playerUUID, getMaxVaultSize(playerUUID), vaultNumber);
+                        if(vault == null) return null;
+                        vaults.put(vaultNumber, vault);
+                        return vault;
+                    }
                 }
             }
-            return null;
+            return vault;
+
         }
-        Map<Integer, PlayerVault> vaults = playerVaults.get(playerUUID);
-        PlayerVault vault = vaults.get(vaultNumber);
-        if(vault == null){
-            if(getMaxAllowedVaults(playerUUID) > vaultNumber){
-                if(getMaxVaultSize(playerUUID) >= 9){
-                    vault = createVault(playerUUID, getMaxVaultSize(playerUUID), vaultNumber);
-                    if(vault == null) return null;
-                    vaults.put(vaultNumber, vault);
-                    return vault;
-                }
-            }
-        }
-        return vault;
     }
 
     /**

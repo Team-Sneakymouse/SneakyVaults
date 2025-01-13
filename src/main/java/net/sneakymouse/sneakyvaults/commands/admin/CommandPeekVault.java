@@ -5,6 +5,7 @@ import net.sneakymouse.sneakyvaults.commands.CommandAdminBase;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
 import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
 import org.bukkit.Bukkit;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -42,33 +43,40 @@ public class CommandPeekVault extends CommandAdminBase {
 
 
         String playerName = args[0];
-        Player target = Bukkit.getPlayer(playerName);
-        if(target == null){
-            /*
-            player.sendMessage(ChatUtility.convertToComponent("&ePlayer Offline.. Attempting to load offline player vault!"));
-            Bukkit.getAsyncScheduler().runNow(SneakyVaults.getInstance(), (_s) ->{
-                OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerName);
+        String targetUUID;
+        if(playerName.length() > 20){ //Should be a UUID and I'm lazy to actually verify this with regex
+            targetUUID = playerName;
+        }
+        else {
+            Player target = Bukkit.getPlayer(playerName);
 
-                String targetUUID = offlinePlayer.getUniqueId().toString();
-                PlayerVault vault = SneakyVaults.getInstance().vaultManager.peakPlayerVault(targetUUID, vaultNum);
+            if(target == null){
+                player.sendMessage(ChatUtility.convertToComponent("&ePlayer Offline.. Attempting to load offline player vault!"));
+                    int finalVaultNumber = vaultNumber;
+                    Bukkit.getAsyncScheduler().runNow(SneakyVaults.getInstance(), (_s) ->{
+                    OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerName);
 
-                if(vault == null){
-                    player.sendMessage(ChatUtility.convertToComponent("&4Error. Could not get vault. The player cannot have that many vaults || The player has the vault opened."));
-                    return;
-                }
+                    String uuid = offlinePlayer.getUniqueId().toString();
+                    PlayerVault vault = SneakyVaults.getInstance().vaultManager.peekPlayerVault(uuid, finalVaultNumber);
+
+                    if(vault == null){
+                        player.sendMessage(ChatUtility.convertToComponent("&4Error. Could not get vault. The player cannot have that many vaults || The player has the vault opened."));
+                        return;
+                    }
 
 
-                Bukkit.getScheduler().runTask(SneakyVaults.getInstance(), () -> {
-                    player.openInventory(vault.getInventory(false));
-                    vault.isOpened = true;
+                    Bukkit.getScheduler().runTask(SneakyVaults.getInstance(), () -> {
+                        player.openInventory(vault.getInventory(false));
+                        vault.isOpened = true;
+                    });
                 });
-            });*/
+                return false;
+            }
 
-            player.sendMessage(ChatUtility.convertToComponent("&cOffline Vault Modification is not supported yet. (ToDo: need a way to check offline player permissions)"));
-            return false;
+            targetUUID = target.getUniqueId().toString();
         }
 
-        String targetUUID = target.getUniqueId().toString();
+
         PlayerVault vault = SneakyVaults.getInstance().vaultManager.peekPlayerVault(targetUUID, vaultNumber);
 
 
