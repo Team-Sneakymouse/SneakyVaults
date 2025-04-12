@@ -8,6 +8,7 @@ import net.sneakymouse.sneakyvaults.events.InventoryListener;
 import net.sneakymouse.sneakyvaults.managers.VaultManager;
 import org.bukkit.Bukkit;
 import org.bukkit.permissions.Permission;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -22,6 +23,8 @@ public class SneakyVaults extends JavaPlugin {
     public File playerDataFolder;
 
     public VaultManager vaultManager;
+
+    public Plugin msPlugin = null;
 
     @Override
     public void onEnable() {
@@ -45,6 +48,13 @@ public class SneakyVaults extends JavaPlugin {
         for(int i = 1; i <= 6; i++){
             //Possible Inventory Sizes: 9, 18, 27, 36, 45, 54
             getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".slots." + 9*i));
+        }
+
+        for(Plugin plugin : Bukkit.getPluginManager().getPlugins()){
+            if(plugin.getName().contains("MagicSpells")){
+                msPlugin = plugin;
+                break;
+            }
         }
 
         saveDefaultConfig();
