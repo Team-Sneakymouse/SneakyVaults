@@ -50,12 +50,7 @@ public class SneakyVaults extends JavaPlugin {
             getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".slots." + 9*i));
         }
 
-        for(Plugin plugin : Bukkit.getPluginManager().getPlugins()){
-            if(plugin.getName().contains("MagicSpells")){
-                msPlugin = plugin;
-                break;
-            }
-        }
+        msPlugin = Bukkit.getPluginManager().getPlugin("MagicSpells");
 
         saveDefaultConfig();
 
