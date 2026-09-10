@@ -1,29 +1,21 @@
 package net.sneakymouse.sneakyvaults.events;
 
-import io.papermc.paper.event.inventory.PaperInventoryMoveItemEvent;
-import net.coreprotect.CoreProtect;
-import net.coreprotect.CoreProtectAPI;
 import net.coreprotect.listener.player.InventoryChangeListener;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
-import net.sneakymouse.sneakyvaults.types.TemplateVault;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.plugin.Plugin;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.util.UUID;
-
-import static org.bukkit.Bukkit.getServer;
 
 public class CoreProtectLoggerEvents implements Listener {
 
@@ -40,13 +32,13 @@ public class CoreProtectLoggerEvents implements Listener {
         }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryInteract(final InventoryClickEvent event) throws InvocationTargetException, IllegalAccessException {
         if(onInventoryInteract == null) return;
 
         Inventory inventory = event.getView().getTopInventory();
 
-        if(!(inventory.getHolder() instanceof PlayerVault))
+        if(!(inventory.getHolder() instanceof PlayerVault vault))
             return;
 
         if(!(event.getWhoClicked() instanceof Player player)) return;
@@ -56,13 +48,23 @@ public class CoreProtectLoggerEvents implements Listener {
         //Following CoreProtects structure here
         if (inventoryAction == InventoryAction.NOTHING) return;
 
-        if(event.getInventory().getHolder() instanceof PlayerVault vault) {
-            String user = player.getName();
-            ItemStack[] contents = inventory.getContents();
-            Location location = vault.getDummyLocation();
+        String user = player.getName();
+        ItemStack[] contents = getInventorySnapshot(inventory);
+        Location location = vault.getDummyLocation();
 
-            onInventoryInteract.invoke(null, user, inventory, contents, null, location, true);
+        onInventoryInteract.invoke(null, user, inventory, contents, null, location, true);
+    }
+
+    private ItemStack[] getInventorySnapshot(Inventory inventory) {
+        ItemStack[] contents = inventory.getContents();
+
+        for(int i = 0; i < contents.length; i++) {
+            ItemStack item = contents[i];
+            if(item != null)
+                contents[i] = item.clone();
         }
+
+        return contents;
     }
 
 }
