@@ -1,6 +1,7 @@
 package net.sneakymouse.sneakyvaults.types;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
+import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
 import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
 import net.sneakymouse.sneakyvaults.utlitiy.InventoryUtility;
 import org.bukkit.Bukkit;
@@ -57,8 +58,6 @@ public class PlayerVault implements InventoryHolder {
             return; //No Vault Section? Then No Vaults to load!
         }
 
-        configuration.save(playerConfigFile);
-
         try {
             if(!force)
                 loadFromConfig();
@@ -108,7 +107,6 @@ public class PlayerVault implements InventoryHolder {
             this.inventory.setContents(items);
         }
 
-        configuration.save(playerConfigFile);
     }
 
     public void saveVault() throws IOException {
@@ -122,7 +120,7 @@ public class PlayerVault implements InventoryHolder {
         vaults.set(this.vaultNumber  + ".items", itemEncoded);
         vaults.set(this.vaultNumber + ".paperConverted", true);
 
-        configuration.save(playerConfigFile);
+        AtomicYamlFiles.save(configuration, playerConfigFile.toPath());
     }
 
     /**

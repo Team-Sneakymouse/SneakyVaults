@@ -6,12 +6,18 @@ import net.sneakymouse.sneakyvaults.events.CoreProtectLoggerEvents;
 import net.sneakymouse.sneakyvaults.events.EditSessionListener;
 import net.sneakymouse.sneakyvaults.events.InventoryListener;
 import net.sneakymouse.sneakyvaults.managers.VaultManager;
+import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
 import org.bukkit.Bukkit;
 import org.bukkit.permissions.Permission;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class SneakyVaults extends JavaPlugin {
@@ -76,6 +82,30 @@ public class SneakyVaults extends JavaPlugin {
     @Override
     public void onDisable() {
         vaultManager.saveAllVaults();
+    }
+
+    @Override
+    public void saveConfig() {
+        try {
+            AtomicYamlFiles.save(getConfig(), getDataFolder().toPath().resolve("config.yml"));
+        } catch(IOException exception) {
+            getLogger().log(Level.SEVERE, "Could not save config.yml atomically", exception);
+        }
+    }
+
+    @Override
+    public void saveDefaultConfig() {
+        Path target = getDataFolder().toPath().resolve("config.yml");
+        if(Files.exists(target)) return;
+
+        try(InputStream resource = getResource("config.yml")) {
+            if(resource == null)
+                throw new IllegalArgumentException("The embedded config.yml resource is missing");
+
+            AtomicYamlFiles.saveResource(resource, target);
+        } catch(IOException exception) {
+            getLogger().log(Level.SEVERE, "Could not save the default config.yml atomically", exception);
+        }
     }
 
     public static SneakyVaults getInstance(){

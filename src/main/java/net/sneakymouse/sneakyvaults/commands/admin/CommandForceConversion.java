@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandAdminBase;
+import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
 import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
 import net.sneakymouse.sneakyvaults.utlitiy.InventoryUtility;
 import org.bukkit.Bukkit;
@@ -72,7 +73,7 @@ public class CommandForceConversion extends CommandAdminBase {
                 vaults.set(vault + ".paperConverted", true);
 
                 try {
-                    configuration.save(playerDataFile);
+                    AtomicYamlFiles.save(configuration, playerDataFile.toPath());
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }

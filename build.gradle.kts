@@ -20,6 +20,8 @@ dependencies {
     paperweight.paperDevBundle("1.20.6-R0.1-SNAPSHOT")
 
     compileOnly("net.coreprotect:coreprotect:22.4")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
 }
 
 java {
@@ -33,5 +35,8 @@ tasks {
     }
     assemble {
         dependsOn(reobfJar)
+    }
+    test {
+        useJUnitPlatform()
     }
 }

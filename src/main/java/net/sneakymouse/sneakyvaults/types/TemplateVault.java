@@ -1,6 +1,7 @@
 package net.sneakymouse.sneakyvaults.types;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
+import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
 import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
 import net.sneakymouse.sneakyvaults.utlitiy.InventoryUtility;
 import org.bukkit.Bukkit;
@@ -61,7 +62,7 @@ public class TemplateVault implements InventoryHolder {
             String inventoryString = InventoryUtility.inventoryToBase64(this.size, closedInventory.getContents());
             localVault.set("inventory", inventoryString);
 
-            configuration.save(playerConfigFile);
+            AtomicYamlFiles.save(configuration, playerConfigFile.toPath());
         } catch(IOException e){
             return;
         }
@@ -126,8 +127,6 @@ public class TemplateVault implements InventoryHolder {
             if(inventory.isEmpty()){
                 return templateInventory;
             }
-
-            configuration.save(playerConfigFile);
 
             contents = InventoryUtility.getSavedInventory(inventory);
             templateInventory.clear();
