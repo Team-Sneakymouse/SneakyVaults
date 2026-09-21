@@ -7,12 +7,14 @@ import net.sneakymouse.sneakyvaults.utlitiy.InventoryUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,6 +25,9 @@ import java.util.UUID;
  * Class containing major information about items, size, and the vault number of a players vault.
  * */
 public class PlayerVault implements InventoryHolder {
+
+    private static final int MINIMUM_SIZE = 9;
+    private static final int MAXIMUM_SIZE = 54;
 
     private final String playerUUID;
     private Inventory inventory;
@@ -51,66 +56,105 @@ public class PlayerVault implements InventoryHolder {
             return; //If the config didn't exist then we have no reason to try to load the vault inventory
         }
 
-        YamlConfiguration configuration = YamlConfiguration.loadConfiguration(playerConfigFile);
+        YamlConfiguration configuration = loadConfiguration(playerConfigFile);
         ConfigurationSection vaults = configuration.getConfigurationSection("player_vaults");
         if(vaults == null){
             configuration.createSection("player_vaults");
             return; //No Vault Section? Then No Vaults to load!
         }
 
-        try {
-            if(!force)
-                loadFromConfig();
-        } catch(IOException e){
-            e.printStackTrace();
-            SneakyVaults.LOGGER.severe("Failed to create player config file!");
-        }
+        if(!force)
+            loadFromConfig();
+    }
+
+    private PlayerVault(String playerUUID, int vaultNumber, File playerConfigFile, ItemStack[] items) {
+        this.playerUUID = playerUUID;
+        this.vaultNumber = vaultNumber;
+        this.playerConfigFile = playerConfigFile;
+        this.inventory = Bukkit.createInventory(this, items.length, ChatUtility.convertToComponent("&ePlayer Vault"));
+        this.inventory.setContents(items);
+    }
+
+    /**
+     * Load a vault only when it already exists in the player's data file.
+     * This method never creates a file, section, or empty vault.
+     */
+    public static @Nullable PlayerVault loadExisting(String playerUUID, int vaultNumber) throws IOException {
+        File playerConfigFile = new File(
+                SneakyVaults.getInstance().playerDataFolder,
+                playerUUID + ".yml"
+        );
+        if(!playerConfigFile.isFile())
+            return null;
+
+        YamlConfiguration configuration = loadConfiguration(playerConfigFile);
+        ConfigurationSection vaults = configuration.getConfigurationSection("player_vaults");
+        if(vaults == null || !vaults.contains(Integer.toString(vaultNumber)))
+            return null;
+
+        ItemStack[] items = loadStoredContents(vaults, vaultNumber);
+        return new PlayerVault(playerUUID, vaultNumber, playerConfigFile, items);
     }
 
     private void loadFromConfig() throws IOException {
-        YamlConfiguration configuration = YamlConfiguration.loadConfiguration(playerConfigFile);
+        YamlConfiguration configuration = loadConfiguration(playerConfigFile);
         ConfigurationSection vaults = configuration.getConfigurationSection("player_vaults");
 
         if(vaults == null) return;
 
-        if(vaults.getBoolean(vaultNumber + ".paperConverted")) {
-            List<String> vaultItems = vaults.getStringList(vaultNumber + ".items");
+        if(!vaults.contains(Integer.toString(vaultNumber))) return;
 
-            List<ItemStack> items = InventoryUtility.inventoryPaperFromBase64(vaultItems);
-            ItemStack[] itemStacks = items.toArray(new ItemStack[0]);
-
-            if(itemStacks.length > this.inventory.getSize()) {
-                SneakyVaults.LOGGER.warning("Saved inventory is larger then localized inventory size? This is strange but will be fixed!");
-                if(itemStacks.length % 9 != 0) {
-                    SneakyVaults.LOGGER.severe("Error: Saved inventory size is not a multiple of 9. This should be impossible!");
-                    return;
-                }
-                this.inventory = Bukkit.createInventory(this, itemStacks.length, ChatUtility.convertToComponent("&ePlayer Vault"));
-            }
-
-            this.inventory.setContents(itemStacks);
+        ItemStack[] items = loadStoredContents(vaults, vaultNumber);
+        if(items.length > this.inventory.getSize()) {
+            SneakyVaults.LOGGER.warning("Saved inventory is larger than the permitted inventory size; preserving the saved size");
+            this.inventory = Bukkit.createInventory(this, items.length, ChatUtility.convertToComponent("&ePlayer Vault"));
         }
-        else {
-            String vaultInventory = vaults.getString("" + vaultNumber);
-            if(vaultInventory == null) return;
 
-            ItemStack[] items = InventoryUtility.getSavedInventory(vaultInventory);
-            if(items.length > this.inventory.getSize()) {
-                SneakyVaults.LOGGER.warning("Saved inventory is larger then localized inventory size? This is strange but will be fixed!");
-                if(items.length % 9 != 0) {
-                    SneakyVaults.LOGGER.severe("Error: Saved inventory size is not a multiple of 9. This should be impossible!");
-                    return;
-                }
-                this.inventory = Bukkit.createInventory(this, items.length, ChatUtility.convertToComponent("&ePlayer Vault"));
-            }
-
-            this.inventory.setContents(items);
-        }
+        this.inventory.setContents(items);
 
     }
 
+    private static ItemStack[] loadStoredContents(ConfigurationSection vaults, int vaultNumber) throws IOException {
+        String vaultPath = Integer.toString(vaultNumber);
+        ItemStack[] items;
+
+        if(vaults.getBoolean(vaultPath + ".paperConverted")) {
+            List<String> encodedItems = vaults.getStringList(vaultPath + ".items");
+            validateStoredSize(encodedItems.size(), vaultNumber);
+            try {
+                items = InventoryUtility.inventoryPaperFromBase64(encodedItems).toArray(new ItemStack[0]);
+            } catch(RuntimeException exception) {
+                throw new IOException("Vault " + vaultNumber + " contains invalid Paper item data", exception);
+            }
+        } else {
+            String encodedInventory = vaults.getString(vaultPath);
+            if(encodedInventory == null || encodedInventory.isBlank())
+                throw new IOException("Vault " + vaultNumber + " has no readable inventory data");
+
+            items = InventoryUtility.getSavedInventoryStrict(encodedInventory);
+            validateStoredSize(items.length, vaultNumber);
+        }
+
+        return items;
+    }
+
+    private static void validateStoredSize(int size, int vaultNumber) throws IOException {
+        if(size < MINIMUM_SIZE || size > MAXIMUM_SIZE || size % 9 != 0)
+            throw new IOException("Vault " + vaultNumber + " has invalid inventory size " + size);
+    }
+
+    private static YamlConfiguration loadConfiguration(File file) throws IOException {
+        YamlConfiguration configuration = new YamlConfiguration();
+        try {
+            configuration.load(file);
+        } catch(InvalidConfigurationException exception) {
+            throw new IOException("Invalid YAML in " + file.getPath(), exception);
+        }
+        return configuration;
+    }
+
     public void saveVault() throws IOException {
-        YamlConfiguration configuration = YamlConfiguration.loadConfiguration(playerConfigFile);
+        YamlConfiguration configuration = loadConfiguration(playerConfigFile);
         ConfigurationSection vaults = configuration.getConfigurationSection("player_vaults");
         if(vaults == null) {
             vaults = configuration.createSection("player_vaults");
@@ -148,6 +192,7 @@ public class PlayerVault implements InventoryHolder {
     }
 
     public String getOwner(){ return this.playerUUID; }
+    public int getVaultNumber(){ return this.vaultNumber; }
     @Override
     public @NotNull Inventory getInventory() {
         return this.getInventory(true);

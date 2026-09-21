@@ -38,14 +38,37 @@ public class InventoryUtility {
      * @return Itemstack[] containing all saved items
      * */
     public static ItemStack[] getSavedInventory(String data) {
-
         try {
-            return inventoryFromBase64(data);
+            return getSavedInventoryStrict(data);
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         return new ItemStack[0];
+    }
+
+    /**
+     * Decode a legacy inventory without hiding malformed data from the caller.
+     *
+     * @throws IOException if the saved inventory cannot be decoded
+     */
+    public static ItemStack[] getSavedInventoryStrict(String data) throws IOException {
+        try {
+            ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64Coder.decodeLines(data));
+            try(BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream)) {
+                int size = dataInput.readInt();
+                if(size < 0 || size > 54)
+                    throw new IOException("Saved inventory has invalid size " + size);
+                ItemStack[] items = new ItemStack[size];
+
+                for(int i = 0; i < size; i++) {
+                    items[i] = (ItemStack) dataInput.readObject();
+                }
+                return items;
+            }
+        } catch(ClassNotFoundException | IllegalArgumentException | ClassCastException exception) {
+            throw new IOException("Could not decode the saved inventory", exception);
+        }
     }
 
 
@@ -155,21 +178,11 @@ public class InventoryUtility {
      * */
     public static ItemStack[] inventoryFromBase64(String data) {
         try {
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64Coder.decodeLines(data));
-            BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream);
-            int size = dataInput.readInt();
-            ItemStack[] items = new ItemStack[size];
-
-            for (int i = 0; i < size; i++) {
-                items[i] = (ItemStack) dataInput.readObject();
-            }
-
-            dataInput.close();
-            return items;
-        } catch (ClassNotFoundException | IOException e) {
+            return getSavedInventoryStrict(data);
+        } catch(IOException e) {
             e.printStackTrace();
         }
-        return null;
+        return new ItemStack[0];
     }
 
 }

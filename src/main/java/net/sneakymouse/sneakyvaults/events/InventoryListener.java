@@ -18,6 +18,7 @@ import org.bukkit.persistence.PersistentDataType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.logging.Level;
 
 public class InventoryListener implements Listener {
 
@@ -48,9 +49,17 @@ public class InventoryListener implements Listener {
         if(inventory.getHolder() instanceof PlayerVault playerVault){
             try {
                 playerVault.saveVault();
+            } catch(IOException exception) {
+                SneakyVaults.LOGGER.log(
+                        Level.SEVERE,
+                        "Failed to save vault " + playerVault.getVaultNumber() + " for " + playerVault.getOwner(),
+                        exception
+                );
+                event.getPlayer().sendMessage(ChatUtility.convertToComponent(
+                        "&cThe vault could not be saved. A server maintainer has been notified."
+                ));
+            } finally {
                 playerVault.isOpened = false;
-            } catch (IOException e){
-                SneakyVaults.LOGGER.severe("Error: Failed to save player vault! " + playerVault.getOwner());
             }
         }
         else if(inventory.getHolder() instanceof TemplateVault templateVault){

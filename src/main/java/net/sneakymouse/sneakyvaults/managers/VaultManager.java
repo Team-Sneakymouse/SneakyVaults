@@ -106,6 +106,25 @@ public class VaultManager {
     }
 
     /**
+     * Get an existing vault without consulting owner permissions or creating storage.
+     */
+    public @Nullable PlayerVault getExistingPlayerVault(@NotNull String playerUUID, int vaultNumber) throws IOException {
+        Map<Integer, PlayerVault> loadedVaults = playerVaults.get(playerUUID);
+        if(loadedVaults != null) {
+            PlayerVault loadedVault = loadedVaults.get(vaultNumber);
+            if(loadedVault != null)
+                return loadedVault;
+        }
+
+        PlayerVault vault = PlayerVault.loadExisting(playerUUID, vaultNumber);
+        if(vault == null)
+            return null;
+
+        playerVaults.computeIfAbsent(playerUUID, ignored -> new HashMap<>()).put(vaultNumber, vault);
+        return vault;
+    }
+
+    /**
      * Get a players player vault based off UUID and Vault Number.
      * This will create a new vault if one does not exist already.
      * @param playerUUID UUID of the player to get the vault of
@@ -115,58 +134,21 @@ public class VaultManager {
      * */
     public @Nullable PlayerVault getPlayerVault(@NotNull String playerUUID, int vaultNumber){
         int maxVaults = getMaxAllowedVaults(playerUUID);
+        if(maxVaults < 0 || vaultNumber < 1 || vaultNumber > maxVaults)
+            return null;
 
-        if(maxVaults == -1) {
-            //Player is likely offline, so like screw it just make it happen?
-            if(!playerVaults.containsKey(playerUUID)) {
-                Map<Integer, PlayerVault> vaults = new HashMap<>();
-                PlayerVault vault = createVault(playerUUID, 54, vaultNumber); //Default to max size vault
-                if(vault == null) return null;
-                vaults.put(vaultNumber, vault);
-                playerVaults.put(playerUUID, vaults);
-                return vault;
-            }
-            Map<Integer, PlayerVault> vaults = playerVaults.get(playerUUID);
-            PlayerVault vault = vaults.get(vaultNumber);
-            if(vault == null){
-                vault = createVault(playerUUID, 54, vaultNumber);
-                if(vault == null) return null;
-                vaults.put(vaultNumber, vault);
-                return vault;
-            }
-            return vault;
+        Map<Integer, PlayerVault> loadedVaults = playerVaults.get(playerUUID);
+        if(loadedVaults != null) {
+            PlayerVault loadedVault = loadedVaults.get(vaultNumber);
+            if(loadedVault != null)
+                return loadedVault;
         }
-        else {
-            if(vaultNumber > maxVaults) return null;
-            if(!playerVaults.containsKey(playerUUID)) {
-                Map<Integer, PlayerVault> vaults = new HashMap<>();
-                if(maxVaults > vaultNumber){
-                    if(getMaxVaultSize(playerUUID) >= 9){
-                        PlayerVault vault = createVault(playerUUID, getMaxVaultSize(playerUUID), vaultNumber);
-                        if(vault == null) return null;
-                        vaults.put(vaultNumber, vault);
-                        playerVaults.put(playerUUID, vaults);
-                        return vault;
-                    }
-                }
-                return null;
-            }
 
-            Map<Integer, PlayerVault> vaults = playerVaults.get(playerUUID);
-            PlayerVault vault = vaults.get(vaultNumber);
-            if(vault == null){
-                if(getMaxAllowedVaults(playerUUID) > vaultNumber){
-                    if(getMaxVaultSize(playerUUID) >= 9){
-                        vault = createVault(playerUUID, getMaxVaultSize(playerUUID), vaultNumber);
-                        if(vault == null) return null;
-                        vaults.put(vaultNumber, vault);
-                        return vault;
-                    }
-                }
-            }
-            return vault;
+        int maxSize = getMaxVaultSize(playerUUID);
+        if(maxSize < 9)
+            return null;
 
-        }
+        return createVault(playerUUID, maxSize, vaultNumber);
     }
 
     /**
