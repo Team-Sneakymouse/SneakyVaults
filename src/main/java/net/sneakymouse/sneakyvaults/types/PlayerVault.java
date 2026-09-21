@@ -9,7 +9,6 @@ import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
@@ -19,7 +18,6 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Class containing major information about items, size, and the vault number of a players vault.
@@ -215,10 +213,9 @@ public class PlayerVault implements InventoryHolder {
     }
 
     public Location getDummyLocation() {
-        Player player = Bukkit.getPlayer(UUID.fromString(this.playerUUID));
-        if(player == null) return null;
+        if(Bukkit.getWorlds().isEmpty()) return null;
         return new Location(
-                player.getWorld(),
+                Bukkit.getWorlds().getFirst(),
                 0,
                 0,
                 this.vaultNumber);

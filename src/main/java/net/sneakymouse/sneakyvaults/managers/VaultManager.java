@@ -90,22 +90,6 @@ public class VaultManager {
     }
 
     /**
-     * Peek another players vault. Technically not required other than checking if the vault is opened already
-     * @param playerUUID UUID of the player to get the vault of
-     * @param vaultNumber Number of the vault to get.
-     * @return PlayerVault object or null if no vault exist or a vault is opened.
-     * @see PlayerVault
-     * */
-    public @Nullable PlayerVault peekPlayerVault(@NotNull String playerUUID, int vaultNumber){
-        PlayerVault vault = getPlayerVault(playerUUID, vaultNumber);
-
-        //Does the player have a vault (technically creates one if allowed)
-        //Is the vault opened?
-        if(vault == null || vault.isOpened) return null;
-        return vault;
-    }
-
-    /**
      * Get an existing vault without consulting owner permissions or creating storage.
      */
     public @Nullable PlayerVault getExistingPlayerVault(@NotNull String playerUUID, int vaultNumber) throws IOException {

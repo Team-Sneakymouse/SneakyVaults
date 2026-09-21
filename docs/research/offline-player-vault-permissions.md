@@ -1,10 +1,10 @@
-# Offline player vault permissions with LuckPerms 5.5.60
+# Offline player vault access and LuckPerms 5.5.60
 
 ## Conclusion
 
-SneakyVaults should use the LuckPerms 5.5 API directly for offline permission reads and writes. Keep UUIDs as the authoritative identity, load offline users through `UserManager`, and carry the returned `CompletableFuture` through the operation. Vault's permission facade can reach an offline LuckPerms user, but it is a synchronous compatibility API that may block or throw during storage lookup and reports success before the asynchronous save has finished.
+The implemented admin workflow edits existing vault storage only. It does not create vaults, resize them, or enforce the owner's current entitlement. That means it does not need LuckPerms or Vault at all. Bukkit's cached offline-player lookup resolves known names, UUID input addresses the UUID-named data files directly, and the saved inventory determines its size.
 
-The current offline `/peekvault` path has a more immediate problem. It treats "player is offline" as unlimited access, creates a 54-slot vault for any requested number, and does Bukkit inventory work plus shared `HashMap` mutation on an async scheduler. LuckPerms integration needs to replace that sentinel behavior, not merely add another permission check beside it.
+If a future feature needs to read or change an offline player's permissions, it should use the LuckPerms 5.5 API directly. Vault's permission facade can reach an offline LuckPerms user, but it is a synchronous compatibility API that may block or throw during storage lookup and reports success before the asynchronous save has finished.
 
 ## Scope and inspected version
 
@@ -12,11 +12,11 @@ There was no existing Markdown notes convention in this repository, so this note
 
 The supplied `C:\Users\DaniDipp\Downloads\26.2\LuckPerms-Bukkit-5.5.60.jar` identifies itself as LuckPerms 5.5.60. Its SHA-256 is `24869A07C3A6AB2966C5EC1F85238B9CB674F46437411BA056E6B5863EE17BB8`. I inspected the public API classes and the nested Bukkit implementation with `javap`; the relevant 5.5.60 bytecode agrees with the 5.5 Javadocs and current official source cited below.
 
-## What SneakyVaults requires
+## Requirements for future permission-aware features
 
 ### Dependency and service lifecycle
 
-- Add `compileOnly("net.luckperms:api:5.5")`. LuckPerms documents API 5.5 as the current major-compatible API line and publishes that artifact on Maven Central. Obtain `LuckPerms` from Bukkit's `ServicesManager` after LuckPerms enables. [LuckPerms developer API](https://luckperms.net/wiki/Developer-API)
+- Add `compileOnly("net.luckperms:api:5.5")` only if a future feature reads or writes LuckPerms data. LuckPerms documents API 5.5 as the current major-compatible API line and publishes that artifact on Maven Central. Obtain `LuckPerms` from Bukkit's `ServicesManager` after LuckPerms enables. [LuckPerms developer API](https://luckperms.net/wiki/Developer-API)
 - If offline vault authorization requires LuckPerms, declare a hard `depend: [LuckPerms]` in `plugin.yml`. A `softdepend` is appropriate only if SneakyVaults has a defined fail-closed fallback. The current descriptor only lists CoreProtect.
 - Do not shade the LuckPerms API into SneakyVaults. It is a provided server service.
 
@@ -84,7 +84,7 @@ That avoids Vault's generic name-loss problem, but two larger limits remain:
 - When the user is not loaded, the LuckPerms Vault bridge must query storage synchronously. By default it throws `ServerThreadLookupException` if this happens on the primary thread; enabling `vault-unsafe-lookups` permits the blocking lookup and risks server lag. The bridge's own class comment calls this out. [LuckPermsVaultPermission lookup path](https://github.com/LuckPerms/LuckPerms/blob/master/bukkit/src/main/java/me/lucko/luckperms/bukkit/vault/LuckPermsVaultPermission.java)
 - After mutating a user, the bridge starts `storage.saveUser` in the background and immediately returns `true`. The caller cannot await durability or receive an asynchronous save failure through Vault's boolean. [LuckPermsVaultPermission save path](https://github.com/LuckPerms/LuckPerms/blob/master/bukkit/src/main/java/me/lucko/luckperms/bukkit/vault/LuckPermsVaultPermission.java)
 
-Vault remains useful when the permissions provider is intentionally unknown. Here the backend is known and the direct LuckPerms API has the right asynchronous contract.
+Vault remains useful when the permissions provider is intentionally unknown. If SneakyVaults later adds permission-aware offline work, the known LuckPerms backend makes its direct asynchronous API the better fit.
 
 ### Economy is separate
 
@@ -94,7 +94,7 @@ Vault Economy has no `setBalance` operation. It exposes `hasAccount`, `getBalanc
 
 If "vault modification" later includes charging an offline owner, that requires a separate review of the actual economy provider. Check `hasAccount`, use the `OfflinePlayer` transaction overloads, reject negative amounts, inspect `EconomyResponse#transactionSuccess()`, and do not assume the provider is safe off-thread or that a withdraw plus vault save is atomic.
 
-## Current SneakyVaults blockers
+## Blockers found in the original implementation
 
 1. `VaultManager#getMaxAllowedVaults` and `getMaxVaultSize` only work with an online Bukkit `Player`; both return `-1` when offline. [`VaultManager.java`](../../src/main/java/net/sneakymouse/sneakyvaults/managers/VaultManager.java)
 2. `getPlayerVault` treats `maxVaults == -1` as unrestricted. It creates the requested vault number with 54 slots. That means `/peekvault offlineName 9999` can create a maximum-size vault even when the owner has no matching permissions.
@@ -103,14 +103,13 @@ If "vault modification" later includes charging an offline owner, that requires 
 5. Splitting the flow across schedulers leaves a race between permission resolution, vault creation, concurrent opens, and `vault.isOpened`. Resolve identity and LuckPerms data asynchronously, then marshal the stateful vault decision and Bukkit inventory creation/opening to the appropriate server thread or Folia region scheduler.
 6. CoreProtect logging passes `PlayerVault#getDummyLocation()` into its reflective inventory logger. That method returns null whenever the vault owner is offline, which is exactly the admin-peek case. Verify CoreProtect's null contract or supply a stable non-player-based location before considering offline editing safe. [`PlayerVault.java`](../../src/main/java/net/sneakymouse/sneakyvaults/types/PlayerVault.java), [`CoreProtectLoggerEvents.java`](../../src/main/java/net/sneakymouse/sneakyvaults/events/CoreProtectLoggerEvents.java)
 
-## Recommended implementation boundary
+## Implemented boundary
 
-Keep the asynchronous stage free of Bukkit inventory work:
+The agreed admin workflow is deliberately narrower than the permission-aware design considered above:
 
-1. Parse a UUID, or resolve a supplied name with LuckPerms. Fail if the name is unknown.
-2. `loadUser(uuid)` and derive effective vault count/size under an explicit context policy.
-3. Return an immutable result such as `(uuid, maxVaults, maxSlots)`.
-4. On the server's correct scheduler, re-check/open the in-memory vault, construct or resize the Bukkit inventory, and update `isOpened` atomically with respect to other opens.
-5. Perform file I/O without holding Bukkit inventory state on a worker thread. Serialize the needed contents on the correct scheduler first, then write the resulting data asynchronously if the serialization API permits it.
-
-For permission mutations, use a separate method that returns LuckPerms' `CompletableFuture<Void>`. Do not route it through Vault, and do not tell the command sender it succeeded until that future completes.
+1. Parse UUID input directly, or resolve names only through Paper's non-blocking cached offline-player lookup.
+2. Require the UUID-named file and requested vault entry to exist. Never create storage from `/peekvault`.
+3. Decode and validate the whole saved inventory before constructing a Bukkit inventory. Refuse malformed YAML, item data, or inventory sizes without saving anything.
+4. Preserve the saved inventory size and ignore the owner's current vault entitlements for this administrative operation.
+5. Perform the lookup, load, open-state transition, and Bukkit inventory work on Paper's main thread so owner and admin access share one lock.
+6. Use Bukkit's first loaded world for the CoreProtect synthetic location, regardless of whether the owner is online.

@@ -10,7 +10,10 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
+import java.util.logging.Level;
 
 public class CommandPeekVault extends CommandAdminBase {
 
@@ -26,7 +29,7 @@ public class CommandPeekVault extends CommandAdminBase {
     public boolean execute(@NotNull CommandSender sender, @NotNull String label, @NotNull String[] args) {
         if(!(sender instanceof Player player)) return false;
 
-        if(args.length == 0){
+        if(args.length < 1 || args.length > 2){
             sender.sendMessage(ChatUtility.convertToComponent("&4Invalid Usage: " + this.usageMessage));
             return false;
         }
@@ -41,53 +44,63 @@ public class CommandPeekVault extends CommandAdminBase {
             }
         }
 
-
-        String playerName = args[0];
-        String targetUUID;
-        if(playerName.length() > 20){ //Should be a UUID and I'm lazy to actually verify this with regex
-            targetUUID = playerName;
-        }
-        else {
-            Player target = Bukkit.getPlayer(playerName);
-
-            if(target == null){
-                player.sendMessage(ChatUtility.convertToComponent("&ePlayer Offline.. Attempting to load offline player vault!"));
-                    int finalVaultNumber = vaultNumber;
-                    Bukkit.getAsyncScheduler().runNow(SneakyVaults.getInstance(), (_s) ->{
-                    OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayer(playerName);
-
-                    String uuid = offlinePlayer.getUniqueId().toString();
-                    PlayerVault vault = SneakyVaults.getInstance().vaultManager.peekPlayerVault(uuid, finalVaultNumber);
-
-                    if(vault == null){
-                        player.sendMessage(ChatUtility.convertToComponent("&4Error. Could not get vault. The player cannot have that many vaults || The player has the vault opened."));
-                        return;
-                    }
-
-
-                    Bukkit.getScheduler().runTask(SneakyVaults.getInstance(), () -> {
-                        player.openInventory(vault.getInventory(false));
-                        vault.isOpened = true;
-                    });
-                });
-                return false;
-            }
-
-            targetUUID = target.getUniqueId().toString();
-        }
-
-
-        PlayerVault vault = SneakyVaults.getInstance().vaultManager.peekPlayerVault(targetUUID, vaultNumber);
-
-
-        if(vault == null){
-            player.sendMessage(ChatUtility.convertToComponent("&4Error. Could not get vault. The player cannot have that many vaults || The player has the vault opened."));
+        if(vaultNumber < 1) {
+            player.sendMessage(ChatUtility.convertToComponent("&4Vault number must be 1 or higher."));
             return false;
         }
 
+        UUID targetUUID;
+        try {
+            targetUUID = UUID.fromString(args[0]);
+        } catch(IllegalArgumentException exception) {
+            OfflinePlayer offlinePlayer = Bukkit.getOfflinePlayerIfCached(args[0]);
+            if(offlinePlayer == null) {
+                player.sendMessage(ChatUtility.convertToComponent(
+                        "&cThat player is not in Bukkit's cache. Use their UUID instead."
+                ));
+                return false;
+            }
+            targetUUID = offlinePlayer.getUniqueId();
+        }
 
-        player.openInventory(vault.getInventory(false));
+        PlayerVault vault;
+        try {
+            vault = SneakyVaults.getInstance().vaultManager.getExistingPlayerVault(
+                    targetUUID.toString(),
+                    vaultNumber
+            );
+        } catch(IOException exception) {
+            SneakyVaults.LOGGER.log(
+                    Level.SEVERE,
+                    "Refusing to open corrupt vault " + vaultNumber + " for " + targetUUID,
+                    exception
+            );
+            player.sendMessage(ChatUtility.convertToComponent(
+                    "&cThat vault could not be read safely. Its file was left unchanged."
+            ));
+            return false;
+        }
+
+        if(vault == null) {
+            player.sendMessage(ChatUtility.convertToComponent("&cThat vault does not exist."));
+            return false;
+        }
+
+        if(vault.isOpened) {
+            player.sendMessage(ChatUtility.convertToComponent("&cThat vault is already open."));
+            return false;
+        }
+
         vault.isOpened = true;
+        try {
+            if(player.openInventory(vault.getInventory(false)) == null) {
+                vault.isOpened = false;
+                player.sendMessage(ChatUtility.convertToComponent("&cAnother plugin prevented that vault from opening."));
+            }
+        } catch(RuntimeException exception) {
+            vault.isOpened = false;
+            throw exception;
+        }
         return false;
     }
 }
