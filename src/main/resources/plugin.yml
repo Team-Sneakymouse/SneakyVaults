@@ -1,6 +1,7 @@
 main: net.sneakymouse.sneakyvaults.SneakyVaults
 version: 1.1
 name: SneakyVaults
+api-version: '26.2'
 softdepend:
   - CoreProtect
 authors:

@@ -88,9 +88,9 @@ public class CommandSearchVault extends CommandAdminBase {
         searchPlayerVaults(
                 itemData,
                 isName,
-                (result) -> sender.sendMessage(ChatUtility.convertToComponent(result.message).clickEvent(ClickEvent.clickEvent(
-                        ClickEvent.Action.SUGGEST_COMMAND, "/peekvault " + result.playerUUID + " " + result.vaultNumber
-                ))),
+                (result) -> sender.sendMessage(ChatUtility.convertToComponent(result.message).clickEvent(
+                        ClickEvent.suggestCommand("/peekvault " + result.playerUUID + " " + result.vaultNumber)
+                )),
                 () -> sender.sendMessage(ChatUtility.convertToComponent("&eFinished Searching for item!"))
         );
 

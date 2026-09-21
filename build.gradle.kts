@@ -1,42 +1,41 @@
 plugins {
     id("java")
-    id("io.papermc.paperweight.userdev") version "1.7.1"
-    id("xyz.jpenilla.run-paper") version "2.3.0" // Adds runServer and runMojangMappedServer tasks for testing
+    id("xyz.jpenilla.run-paper") version "3.1.0"
 }
 
 group = "net.sneakymouse"
 version = "1.1-SNAPSHOT"
 
+val paperVersion = "26.2.build.+"
+
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
-    maven("https://oss.sonatype.org/content/repositories/snapshots")
     maven("https://maven.playpro.com")
 }
 
-//paperweight.reobfArtifactConfiguration = io.papermc.paperweight.userdev.ReobfArtifactConfiguration.MOJANG_PRODUCTION
-
 dependencies {
-    paperweight.paperDevBundle("1.20.6-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:$paperVersion")
 
     compileOnly("net.coreprotect:coreprotect:22.4")
 
+    testImplementation("io.papermc.paper:paper-api:$paperVersion")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_21
-    targetCompatibility = JavaVersion.VERSION_21
+    toolchain.languageVersion.set(JavaLanguageVersion.of(25))
 }
 
 tasks {
     compileJava {
-        options.release = 21
-    }
-    assemble {
-        dependsOn(reobfJar)
+        options.release.set(25)
     }
     test {
         useJUnitPlatform()
+    }
+    runServer {
+        minecraftVersion("26.2")
     }
 }
