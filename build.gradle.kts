@@ -90,6 +90,7 @@ publishing {
                 name.set("SneakyVaults")
                 description.set("Paper plugin for player vault storage with templates and admin tools.")
                 url.set("https://github.com/Team-Sneakymouse/SneakyVaults")
+                properties.put("sneakyrp.deployment.type", "paper-plugin")
                 licenses {
                     license {
                         name.set("GNU General Public License v3.0")
