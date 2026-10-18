@@ -33,10 +33,10 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:$paperVersion")
     compileOnly("net.coreprotect:coreprotect:22.4")
-    compileOnly("io.github.team-sneakymouse:sneakyutils:2026.10.18-4b5831b0b997")
+    compileOnly("io.github.team-sneakymouse:sneakyutils:2026.10.18-1f2e2f1ad8bf")
 
     testImplementation("io.papermc.paper:paper-api:$paperVersion")
-    testImplementation("io.github.team-sneakymouse:sneakyutils:2026.10.18-4b5831b0b997")
+    testImplementation("io.github.team-sneakymouse:sneakyutils:2026.10.18-1f2e2f1ad8bf")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
 }
