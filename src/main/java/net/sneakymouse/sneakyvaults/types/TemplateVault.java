@@ -2,8 +2,8 @@ package net.sneakymouse.sneakyvaults.types;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
-import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
-import net.sneakymouse.sneakyvaults.utlitiy.InventoryUtility;
+import com.sneakyutils.util.TextUtility;
+import com.sneakyutils.util.InventoryUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -87,7 +87,7 @@ public class TemplateVault implements InventoryHolder {
     }
 
     public @NotNull Inventory getInventory(String playerUUID, boolean force){
-        Inventory templateInventory = Bukkit.createInventory(this, this.size, ChatUtility.convertToComponent("&eVault"));
+        Inventory templateInventory = Bukkit.createInventory(this, this.size, TextUtility.INSTANCE.convertToComponent("&eVault"));
         ConfigurationSection vaultSection = templateSection.getConfigurationSection(this.vaultName);
         if(vaultSection == null) //This technically should not be possible
             vaultSection = templateSection.createSection(this.vaultName);
@@ -99,7 +99,12 @@ public class TemplateVault implements InventoryHolder {
         if(inventoryString.isEmpty()){
             return templateInventory;
         }
-        ItemStack[] contents = InventoryUtility.getSavedInventory(inventoryString);
+        ItemStack[] contents;
+        try {
+            contents = InventoryUtility.getSavedInventory(inventoryString);
+        } catch (IOException e) {
+            return templateInventory;
+        }
 
         templateInventory.setContents(contents);
 
@@ -141,7 +146,7 @@ public class TemplateVault implements InventoryHolder {
     @Override
     public @NotNull Inventory getInventory() {
 
-        Inventory templateInventory = Bukkit.createInventory(this, this.size, ChatUtility.convertToComponent("&eTemplate Inventory"));
+        Inventory templateInventory = Bukkit.createInventory(this, this.size, TextUtility.INSTANCE.convertToComponent("&eTemplate Inventory"));
         ConfigurationSection vaultSection = templateSection.getConfigurationSection(this.vaultName);
         if(vaultSection == null) //This technically should not be possible
             vaultSection = templateSection.createSection(this.vaultName);
@@ -152,7 +157,12 @@ public class TemplateVault implements InventoryHolder {
             return templateInventory;
         }
 
-        ItemStack[] contents = InventoryUtility.getSavedInventory(inventoryString);
+        ItemStack[] contents;
+        try {
+            contents = InventoryUtility.getSavedInventory(inventoryString);
+        } catch (IOException e) {
+            return templateInventory;
+        }
 
         templateInventory.setContents(contents);
 

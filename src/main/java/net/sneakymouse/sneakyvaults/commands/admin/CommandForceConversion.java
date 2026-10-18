@@ -5,8 +5,8 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandAdminBase;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
-import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
-import net.sneakymouse.sneakyvaults.utlitiy.InventoryUtility;
+import com.sneakyutils.util.TextUtility;
+import com.sneakyutils.util.InventoryUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
@@ -33,13 +33,13 @@ public class CommandForceConversion extends CommandAdminBase {
 
         File file = SneakyVaults.getInstance().playerDataFolder;
         if(!file.exists() || !file.isDirectory()) {
-            sender.sendMessage(ChatUtility.convertToComponent("&4No player data files found!"));
+            sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&4No player data files found!"));
             return false;
         }
         File[] playerDataFiles = file.listFiles();
 
         if(playerDataFiles == null) {
-            sender.sendMessage(ChatUtility.convertToComponent("&4No player data files found!"));
+            sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&4No player data files found!"));
             return false;
         }
 
@@ -56,14 +56,20 @@ public class CommandForceConversion extends CommandAdminBase {
 
                 Inventory inventory = Bukkit.createInventory(null, 9);
 
-                ItemStack[] items = InventoryUtility.getSavedInventory(vaultInventory);
+                ItemStack[] items;
+                try {
+                    items = InventoryUtility.getSavedInventory(vaultInventory);
+                } catch (IOException e) {
+                    SneakyVaults.LOGGER.warning("Failed to decode vault inventory for conversion: " + e.getMessage());
+                    continue;
+                }
                 if(items.length > inventory.getSize()) {
                     SneakyVaults.LOGGER.warning("Saved inventory is larger then localized inventory size? This is strange but will be fixed!");
                     if(items.length % 9 != 0) {
                         SneakyVaults.LOGGER.severe("Error: Saved inventory size is not a multiple of 9. This should be impossible!");
                         continue;
                     }
-                    inventory = Bukkit.createInventory(null, items.length, ChatUtility.convertToComponent("&ePlayer Vault"));
+                    inventory = Bukkit.createInventory(null, items.length, TextUtility.INSTANCE.convertToComponent("&ePlayer Vault"));
                 }
 
                 inventory.setContents(items);

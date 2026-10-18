@@ -5,8 +5,8 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandAdminBase;
-import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
-import net.sneakymouse.sneakyvaults.utlitiy.InventoryUtility;
+import com.sneakyutils.util.TextUtility;
+import com.sneakyutils.util.InventoryUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.ConfigurationSection;
@@ -72,11 +72,11 @@ public class CommandSearchVault extends CommandAdminBase {
     public boolean execute(@NotNull CommandSender sender, @NotNull String label, @NotNull String[] args) {
 
         if(args.length < 2) {
-            sender.sendMessage(ChatUtility.convertToComponent("&cInvalid Usage: " + this.usageMessage));
+            sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&cInvalid Usage: " + this.usageMessage));
             return false;
         }
 
-        sender.sendMessage(ChatUtility.convertToComponent("&eSearching for item..."));
+        sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&eSearching for item..."));
         boolean isName = args[0].equalsIgnoreCase("name");
         StringBuilder builder = new StringBuilder();
 
@@ -88,10 +88,10 @@ public class CommandSearchVault extends CommandAdminBase {
         searchPlayerVaults(
                 itemData,
                 isName,
-                (result) -> sender.sendMessage(ChatUtility.convertToComponent(result.message).clickEvent(
+                (result) -> sender.sendMessage(TextUtility.INSTANCE.convertToComponent(result.message).clickEvent(
                         ClickEvent.suggestCommand("/peekvault " + result.playerUUID + " " + result.vaultNumber)
                 )),
-                () -> sender.sendMessage(ChatUtility.convertToComponent("&eFinished Searching for item!"))
+                () -> sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&eFinished Searching for item!"))
         );
 
         return false;

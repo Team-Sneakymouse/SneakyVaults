@@ -27,13 +27,16 @@ repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://maven.playpro.com")
+    maven("https://maven.sneakyrp.com/releases")
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:$paperVersion")
     compileOnly("net.coreprotect:coreprotect:22.4")
+    compileOnly("io.github.team-sneakymouse:sneakyutils:2026.10.18-4b5831b0b997")
 
     testImplementation("io.papermc.paper:paper-api:$paperVersion")
+    testImplementation("io.github.team-sneakymouse:sneakyutils:2026.10.18-4b5831b0b997")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
 }

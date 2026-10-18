@@ -2,6 +2,8 @@ main: net.sneakymouse.sneakyvaults.SneakyVaults
 version: '${version}'
 name: SneakyVaults
 api-version: '26.2'
+depend:
+  - SneakyUtils
 softdepend:
   - CoreProtect
 authors:

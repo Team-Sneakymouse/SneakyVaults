@@ -2,8 +2,8 @@ package net.sneakymouse.sneakyvaults.types;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
-import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
-import net.sneakymouse.sneakyvaults.utlitiy.InventoryUtility;
+import com.sneakyutils.util.TextUtility;
+import com.sneakyutils.util.InventoryUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
@@ -42,7 +42,7 @@ public class PlayerVault implements InventoryHolder {
      * */
     public PlayerVault(String playerUUID, int size, int vaultNumber, boolean force) throws IOException {
         this.playerUUID = playerUUID;
-        this.inventory = Bukkit.createInventory(this, size, ChatUtility.convertToComponent("&ePlayer Vault"));
+        this.inventory = Bukkit.createInventory(this, size, TextUtility.INSTANCE.convertToComponent("&ePlayer Vault"));
         this.vaultNumber = vaultNumber;
 
         playerConfigFile = new File(SneakyVaults.getInstance().playerDataFolder.getPath() + "/" + playerUUID + ".yml");
@@ -69,7 +69,7 @@ public class PlayerVault implements InventoryHolder {
         this.playerUUID = playerUUID;
         this.vaultNumber = vaultNumber;
         this.playerConfigFile = playerConfigFile;
-        this.inventory = Bukkit.createInventory(this, items.length, ChatUtility.convertToComponent("&ePlayer Vault"));
+        this.inventory = Bukkit.createInventory(this, items.length, TextUtility.INSTANCE.convertToComponent("&ePlayer Vault"));
         this.inventory.setContents(items);
     }
 
@@ -105,7 +105,7 @@ public class PlayerVault implements InventoryHolder {
         ItemStack[] items = loadStoredContents(vaults, vaultNumber);
         if(items.length > this.inventory.getSize()) {
             SneakyVaults.LOGGER.warning("Saved inventory is larger than the permitted inventory size; preserving the saved size");
-            this.inventory = Bukkit.createInventory(this, items.length, ChatUtility.convertToComponent("&ePlayer Vault"));
+            this.inventory = Bukkit.createInventory(this, items.length, TextUtility.INSTANCE.convertToComponent("&ePlayer Vault"));
         }
 
         this.inventory.setContents(items);
@@ -175,7 +175,7 @@ public class PlayerVault implements InventoryHolder {
         if(maxSize > this.inventory.getSize()){
 
             ItemStack[] items = this.inventory.getContents();
-            this.inventory = Bukkit.createInventory(this, maxSize, ChatUtility.convertToComponent("&ePlayer Vault"));
+            this.inventory = Bukkit.createInventory(this, maxSize, TextUtility.INSTANCE.convertToComponent("&ePlayer Vault"));
 
             for(int i = 0; i < items.length; i++){
                 ItemStack item = items[i];

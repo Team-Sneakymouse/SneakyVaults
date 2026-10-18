@@ -3,7 +3,7 @@ package net.sneakymouse.sneakyvaults.events;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
 import net.sneakymouse.sneakyvaults.types.TemplateVault;
-import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
+import com.sneakyutils.util.TextUtility;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
@@ -55,7 +55,7 @@ public class InventoryListener implements Listener {
                         "Failed to save vault " + playerVault.getVaultNumber() + " for " + playerVault.getOwner(),
                         exception
                 );
-                event.getPlayer().sendMessage(ChatUtility.convertToComponent(
+                event.getPlayer().sendMessage(TextUtility.INSTANCE.convertToComponent(
                         "&cThe vault could not be saved. A server maintainer has been notified."
                 ));
             } finally {
@@ -65,7 +65,7 @@ public class InventoryListener implements Listener {
         else if(inventory.getHolder() instanceof TemplateVault templateVault){
             if(templateVault.isEditMode()){
                 templateVault.endEditMode(event.getInventory());
-                event.getPlayer().sendMessage(ChatUtility.convertToComponent("&aEdit session ended! Inventory saved to config!"));
+                event.getPlayer().sendMessage(TextUtility.INSTANCE.convertToComponent("&aEdit session ended! Inventory saved to config!"));
             }else{
                 templateVault.onClosed((Player) event.getPlayer(), event.getInventory());
             }

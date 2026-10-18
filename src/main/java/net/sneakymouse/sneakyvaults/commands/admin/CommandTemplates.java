@@ -2,7 +2,7 @@ package net.sneakymouse.sneakyvaults.commands.admin;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandAdminBase;
-import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
+import com.sneakyutils.util.TextUtility;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
@@ -30,12 +30,12 @@ public class CommandTemplates extends CommandAdminBase {
             for(String name : SneakyVaults.getInstance().vaultManager.getExistingTemplateVaults()){
                 resultMessage.append("&b- ").append(name).append("\n");
             }
-            player.sendMessage(ChatUtility.convertToComponent(resultMessage.toString()));
+            player.sendMessage(TextUtility.INSTANCE.convertToComponent(resultMessage.toString()));
             return false;
         }
 
         if(args.length != 2){
-            player.sendMessage(ChatUtility.convertToComponent("&4Invalid Usage: " + this.usageMessage));
+            player.sendMessage(TextUtility.INSTANCE.convertToComponent("&4Invalid Usage: " + this.usageMessage));
             return false;
         }
 
@@ -43,24 +43,24 @@ public class CommandTemplates extends CommandAdminBase {
             String vaultName = args[1];
 
             if(!SneakyVaults.getInstance().vaultManager.createTemplateVault(vaultName)){
-                player.sendMessage(ChatUtility.convertToComponent("&cFailed to create vault " + vaultName + " as it already exists!"));
+                player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cFailed to create vault " + vaultName + " as it already exists!"));
                 return false;
             }
 
-            player.sendMessage(ChatUtility.convertToComponent("&eCreated new vault " + vaultName));
+            player.sendMessage(TextUtility.INSTANCE.convertToComponent("&eCreated new vault " + vaultName));
         }
         else if(args[0].equalsIgnoreCase("edit")) {
             String vaultName = args[1];
 
             if(!SneakyVaults.getInstance().vaultManager.createEditSession(player.getUniqueId().toString(), vaultName)){
-                player.sendMessage(ChatUtility.convertToComponent("&4You must create a vault before you can edit a vault!"));
+                player.sendMessage(TextUtility.INSTANCE.convertToComponent("&4You must create a vault before you can edit a vault!"));
                 return false;
             }
         }
         else if(args[0].equalsIgnoreCase("delete")){
             String vaultName = args[1];
             SneakyVaults.getInstance().vaultManager.deleteTemplateVault(vaultName);
-            player.sendMessage(ChatUtility.convertToComponent("&eDeleted vault " + vaultName + " if it exists!"));
+            player.sendMessage(TextUtility.INSTANCE.convertToComponent("&eDeleted vault " + vaultName + " if it exists!"));
         }
 
         return false;

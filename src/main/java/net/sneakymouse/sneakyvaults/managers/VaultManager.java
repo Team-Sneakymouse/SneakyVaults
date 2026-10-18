@@ -3,7 +3,7 @@ package net.sneakymouse.sneakyvaults.managers;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
 import net.sneakymouse.sneakyvaults.types.TemplateVault;
-import net.sneakymouse.sneakyvaults.utlitiy.ChatUtility;
+import com.sneakyutils.util.TextUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -243,20 +243,20 @@ public class VaultManager {
         Player player = Bukkit.getPlayer(UUID.fromString(playerUUID));
         if(player == null)
             return false;
-        player.sendMessage(ChatUtility.convertToComponent("&aStarted new edit session for vault " + vaultName));
+        player.sendMessage(TextUtility.INSTANCE.convertToComponent("&aStarted new edit session for vault " + vaultName));
         int vaultSize = vaultSection.getInt("size", -1);
         if(vaultSize == -1){
             vaultSizeSession.put(playerUUID, vaultName);
-            player.sendMessage(ChatUtility.convertToComponent("&eThere is no inventory for this vault!\n&6Please state the size of the vault (Must be a multiple of 9):"));
+            player.sendMessage(TextUtility.INSTANCE.convertToComponent("&eThere is no inventory for this vault!\n&6Please state the size of the vault (Must be a multiple of 9):"));
         }
         else {
             TemplateVault vault = getOrCreateTemplateVault(vaultName);
             if(vault == null){
-                player.sendMessage(ChatUtility.convertToComponent("&cTemplate Vault does not exist!"));
+                player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cTemplate Vault does not exist!"));
                 return false;
             }
             if(vault.isEditMode()){
-                player.sendMessage(ChatUtility.convertToComponent("&cTemplate Vault is already currently being edited!"));
+                player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cTemplate Vault is already currently being edited!"));
                 return false;
             }
 
