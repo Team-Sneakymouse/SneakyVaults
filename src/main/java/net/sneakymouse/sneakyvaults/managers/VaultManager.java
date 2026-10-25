@@ -68,7 +68,13 @@ public class VaultManager {
     public int getMaxAllowedVaults(String playerUUID){
         Player player = Bukkit.getPlayer(UUID.fromString(playerUUID));
         if(player == null) return -1;
-        String prefix = IDENTIFIER + ".max.";
+        return maxVaultsFromPermissions(player, IDENTIFIER + ".max.");
+    }
+
+    /**
+     * Highest N among the player's granted {@code <prefix>N} permissions, or 0 if none.
+     * */
+    public static int maxVaultsFromPermissions(Player player, String prefix){
         return player.getEffectivePermissions().stream()
                 .filter(p -> p.getValue() && p.getPermission().startsWith(prefix))
                 .mapToInt(p -> parseVaultCount(p.getPermission().substring(prefix.length())))
@@ -94,8 +100,15 @@ public class VaultManager {
     public int getMaxVaultSize(String playerUUID){
         Player player = Bukkit.getPlayer(UUID.fromString(playerUUID));
         if(player == null) return -1;
-        for(int i = 6; i >= 0; i--){
-            if(player.hasPermission(IDENTIFIER +".slots." + 9*i)){
+        return maxSlotsFromPermissions(player, IDENTIFIER + ".slots.");
+    }
+
+    /**
+     * Largest size among the player's {@code <prefix>9 .. <prefix>54} permissions, or -1 if none.
+     * */
+    public static int maxSlotsFromPermissions(Player player, String prefix){
+        for(int i = 6; i >= 1; i--){
+            if(player.hasPermission(prefix + 9*i)){
                 return 9*i;
             }
         }

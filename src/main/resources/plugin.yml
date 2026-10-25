@@ -6,5 +6,6 @@ depend:
   - SneakyUtils
 softdepend:
   - CoreProtect
+  - SneakyCharacterManager
 authors:
   - Bungo

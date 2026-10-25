@@ -2,6 +2,7 @@ package net.sneakymouse.sneakyvaults.events;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
+import net.sneakymouse.sneakyvaults.types.SharedVault;
 import net.sneakymouse.sneakyvaults.types.TemplateVault;
 import com.sneakyutils.util.TextUtility;
 import org.bukkit.Material;
@@ -60,6 +61,16 @@ public class InventoryListener implements Listener {
                 ));
             } finally {
                 playerVault.isOpened = false;
+            }
+        }
+        else if(inventory.getHolder() instanceof SharedVault sharedVault){
+            try {
+                SneakyVaults.getInstance().sharedVaultManager.onClose(sharedVault);
+            } catch(IOException exception) {
+                SneakyVaults.LOGGER.log(Level.SEVERE, "Failed to save " + sharedVault, exception);
+                event.getPlayer().sendMessage(TextUtility.INSTANCE.convertToComponent(
+                        "&cThe vault could not be saved. A server maintainer has been notified."
+                ));
             }
         }
         else if(inventory.getHolder() instanceof TemplateVault templateVault){

@@ -34,6 +34,11 @@ dependencies {
     compileOnly("io.papermc.paper:paper-api:$paperVersion")
     compileOnly("net.coreprotect:coreprotect:22.4")
     compileOnly("io.github.team-sneakymouse:sneakyutils:2026.10.18-657d452bd6f4")
+    // Optional (softdepend): only reached through integration/
+    compileOnly("io.github.team-sneakymouse:sneakycharactermanager-paper:2026.10.22-cb1ace342180") {
+        exclude(group = "org.jetbrains.kotlin")
+        isTransitive = false
+    }
 
     testImplementation("io.papermc.paper:paper-api:$paperVersion")
     testImplementation("io.github.team-sneakymouse:sneakyutils:2026.10.18-657d452bd6f4")

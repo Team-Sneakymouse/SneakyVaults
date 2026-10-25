@@ -3,6 +3,7 @@ package net.sneakymouse.sneakyvaults.events;
 import net.coreprotect.listener.player.InventoryChangeListener;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
+import net.sneakymouse.sneakyvaults.types.SharedVault;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -38,7 +39,12 @@ public class CoreProtectLoggerEvents implements Listener {
 
         Inventory inventory = event.getView().getTopInventory();
 
-        if(!(inventory.getHolder() instanceof PlayerVault vault))
+        Location location;
+        if(inventory.getHolder() instanceof PlayerVault vault)
+            location = vault.getDummyLocation();
+        else if(inventory.getHolder() instanceof SharedVault vault)
+            location = vault.getDummyLocation();
+        else
             return;
 
         if(!(event.getWhoClicked() instanceof Player player)) return;
@@ -50,7 +56,6 @@ public class CoreProtectLoggerEvents implements Listener {
 
         String user = player.getName();
         ItemStack[] contents = getInventorySnapshot(inventory);
-        Location location = vault.getDummyLocation();
 
         onInventoryInteract.invoke(null, user, inventory, contents, null, location, true);
     }
