@@ -6,6 +6,7 @@ import com.sneakyutils.util.TextUtility;
 import com.sneakyutils.util.InventoryUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -16,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.logging.Level;
 
 public class TemplateVault implements InventoryHolder {
 
@@ -43,14 +45,9 @@ public class TemplateVault implements InventoryHolder {
 
     public void onClosed(Player player, Inventory closedInventory){
         try {
-            File playerConfigFile = new File(SneakyVaults.getInstance().playerDataFolder.getPath() + "/" + player.getUniqueId().toString() + ".yml");
-            if(!playerConfigFile.exists()){
-                if(!playerConfigFile.createNewFile()){
-                    SneakyVaults.LOGGER.severe("Failed to create player config file!");
-                    return;
-                }
-            }
-            YamlConfiguration configuration = YamlConfiguration.loadConfiguration(playerConfigFile);
+            File playerConfigFile = getPlayerConfigFile(player.getUniqueId().toString());
+            YamlConfiguration configuration = loadPlayerConfiguration(playerConfigFile);
+
             ConfigurationSection section = configuration.getConfigurationSection("template_vaults");
             if(section == null)
                 section = configuration.createSection("template_vaults");
@@ -59,21 +56,21 @@ public class TemplateVault implements InventoryHolder {
             if(localVault == null)
                 localVault = section.createSection(this.vaultName);
 
-            String inventoryString = InventoryUtility.inventoryToBase64(this.size, closedInventory.getContents());
-            localVault.set("inventory", inventoryString);
+            localVault.set("inventory", InventoryUtility.inventoryToPaperYaml(closedInventory.getContents()));
 
             AtomicYamlFiles.save(configuration, playerConfigFile.toPath());
         } catch(IOException e){
-            return;
+            SneakyVaults.LOGGER.log(Level.SEVERE, "Failed to save template vault " + this.vaultName + " for " + player.getUniqueId(), e);
+            player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThe vault could not be saved. A server maintainer has been notified."));
         }
     }
 
-    public void startEditMode(Player player){
+    public void startEditMode(Player player) throws IOException {
+        Inventory templateInventory = getInventory(false);
         this.editMode = true;
-        Inventory templateInventory = getInventory();
         player.openInventory(templateInventory);
-
     }
+
     public void endEditMode(Inventory closedInventory) {
         this.editMode = false;
 
@@ -81,93 +78,75 @@ public class TemplateVault implements InventoryHolder {
         if(vaultSection == null) //This technically should not be possible
             vaultSection = templateSection.createSection(this.vaultName);
 
-        String inventoryString = InventoryUtility.inventoryToBase64(this.size, closedInventory.getContents());
-        vaultSection.set("inventory", inventoryString);
+        vaultSection.set("inventory", InventoryUtility.inventoryToPaperYaml(closedInventory.getContents()));
         SneakyVaults.getInstance().saveConfig();
     }
 
-    public @NotNull Inventory getInventory(String playerUUID, boolean force){
-        Inventory templateInventory = Bukkit.createInventory(this, this.size, TextUtility.INSTANCE.convertToComponent("&eVault"));
-        ConfigurationSection vaultSection = templateSection.getConfigurationSection(this.vaultName);
-        if(vaultSection == null) //This technically should not be possible
-            vaultSection = templateSection.createSection(this.vaultName);
-
-        String inventoryString;
-
-        inventoryString = vaultSection.getString("inventory", "");
-
-        if(inventoryString.isEmpty()){
-            return templateInventory;
-        }
-        ItemStack[] contents;
-        try {
-            contents = InventoryUtility.getSavedInventory(inventoryString);
-        } catch (IOException e) {
-            return templateInventory;
-        }
-
-        templateInventory.setContents(contents);
+    /**
+     * Build the inventory a player sees for this template.
+     * @throws IOException if the template or the player's saved copy cannot be read; nothing is opened or saved then
+     * */
+    public @NotNull Inventory getInventory(String playerUUID, boolean force) throws IOException {
+        Inventory templateInventory = getInventory(true);
 
         if(force)
             return templateInventory;
 
-        try {
-            File playerConfigFile = new File(SneakyVaults.getInstance().playerDataFolder.getPath() + "/" + playerUUID + ".yml");
-            if(!playerConfigFile.exists()){
-                if(!playerConfigFile.createNewFile()){
-                    SneakyVaults.LOGGER.severe("Failed to create player config file!");
-                    return templateInventory;
-                }
-            }
-            YamlConfiguration configuration = YamlConfiguration.loadConfiguration(playerConfigFile);
-            ConfigurationSection section = configuration.getConfigurationSection("template_vaults");
-            if(section == null)
-                section = configuration.createSection("template_vaults");
-
-            ConfigurationSection localVault = section.getConfigurationSection(this.vaultName);
-            if(localVault == null)
-                localVault = section.createSection(this.vaultName);
-
-            String inventory = localVault.getString("inventory", "");
-            if(inventory.isEmpty()){
-                return templateInventory;
-            }
-
-            contents = InventoryUtility.getSavedInventory(inventory);
-            templateInventory.clear();
-            templateInventory.setContents(contents);
-
+        File playerConfigFile = getPlayerConfigFile(playerUUID);
+        if(!playerConfigFile.isFile())
             return templateInventory;
-        } catch(IOException e){
+
+        YamlConfiguration configuration = loadPlayerConfiguration(playerConfigFile);
+        String inventory = configuration.getString("template_vaults." + this.vaultName + ".inventory", "");
+        if(inventory.isEmpty())
             return templateInventory;
-        }
+
+        templateInventory.clear();
+        setContents(templateInventory, InventoryUtility.getSavedInventory(inventory));
+        return templateInventory;
     }
 
     @Override
     public @NotNull Inventory getInventory() {
-
-        Inventory templateInventory = Bukkit.createInventory(this, this.size, TextUtility.INSTANCE.convertToComponent("&eTemplate Inventory"));
-        ConfigurationSection vaultSection = templateSection.getConfigurationSection(this.vaultName);
-        if(vaultSection == null) //This technically should not be possible
-            vaultSection = templateSection.createSection(this.vaultName);
-
-        String inventoryString = vaultSection.getString("inventory", "");
-
-        if(inventoryString.isEmpty()){
-            return templateInventory;
-        }
-
-        ItemStack[] contents;
         try {
-            contents = InventoryUtility.getSavedInventory(inventoryString);
-        } catch (IOException e) {
-            return templateInventory;
+            return getInventory(false);
+        } catch(IOException e) {
+            throw new IllegalStateException("Template vault " + this.vaultName + " could not be read", e);
         }
+    }
 
-        templateInventory.setContents(contents);
+    private @NotNull Inventory getInventory(boolean playerFacing) throws IOException {
+        String title = playerFacing ? "&eVault" : "&eTemplate Inventory";
+        Inventory templateInventory = Bukkit.createInventory(this, this.size, TextUtility.INSTANCE.convertToComponent(title));
+
+        String inventoryString = templateSection.getString(this.vaultName + ".inventory", "");
+        if(!inventoryString.isEmpty())
+            setContents(templateInventory, InventoryUtility.getSavedInventory(inventoryString));
 
         return templateInventory;
     }
 
+    private void setContents(Inventory inventory, ItemStack[] contents) throws IOException {
+        if(contents.length > inventory.getSize())
+            throw new IOException("Saved inventory has " + contents.length + " slots but template " + this.vaultName + " has " + inventory.getSize());
+        inventory.setContents(contents);
+    }
+
+    private static File getPlayerConfigFile(String playerUUID){
+        return new File(SneakyVaults.getInstance().playerDataFolder, playerUUID + ".yml");
+    }
+
+    /** Strict load so a corrupt file is never overwritten with an empty one. */
+    private static YamlConfiguration loadPlayerConfiguration(File file) throws IOException {
+        YamlConfiguration configuration = new YamlConfiguration();
+        if(!file.isFile())
+            return configuration;
+        try {
+            configuration.load(file);
+        } catch(InvalidConfigurationException e) {
+            throw new IOException("Invalid YAML in " + file.getPath(), e);
+        }
+        return configuration;
+    }
 
 }

@@ -9,6 +9,7 @@ import net.sneakymouse.sneakyvaults.managers.VaultManager;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
 import org.bukkit.Bukkit;
 import org.bukkit.permissions.Permission;
+import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -53,7 +54,8 @@ public class SneakyVaults extends JavaPlugin {
 
         for(int i = 1; i <= 6; i++){
             //Possible Inventory Sizes: 9, 18, 27, 36, 45, 54
-            getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".slots." + 9*i));
+            // FALSE so ops do not get max-size vaults without an explicit grant
+            getServer().getPluginManager().addPermission(new Permission(IDENTIFIER + ".slots." + 9*i, PermissionDefault.FALSE));
         }
 
         msPlugin = Bukkit.getPluginManager().getPlugin("MagicSpells");

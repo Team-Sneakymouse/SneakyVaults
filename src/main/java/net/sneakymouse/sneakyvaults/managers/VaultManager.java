@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.logging.Level;
 
 import static net.sneakymouse.sneakyvaults.SneakyVaults.IDENTIFIER;
 
@@ -67,10 +68,22 @@ public class VaultManager {
     public int getMaxAllowedVaults(String playerUUID){
         Player player = Bukkit.getPlayer(UUID.fromString(playerUUID));
         if(player == null) return -1;
-        return player.getEffectivePermissions().stream().filter(p -> p.getPermission().startsWith(IDENTIFIER + ".max.")).map(p -> {
-            var split = p.getPermission().split("\\.");
-            return Integer.parseInt(split[split.length - 1]);
-        }).max(Integer::compare).orElse(0);
+        String prefix = IDENTIFIER + ".max.";
+        return player.getEffectivePermissions().stream()
+                .filter(p -> p.getValue() && p.getPermission().startsWith(prefix))
+                .mapToInt(p -> parseVaultCount(p.getPermission().substring(prefix.length())))
+                .max().orElse(0);
+    }
+
+    /**
+     * Parse the suffix of a sneakyvaults.max.N node. Malformed or negative suffixes grant nothing.
+     */
+    private static int parseVaultCount(String suffix){
+        try {
+            return Math.max(0, Integer.parseInt(suffix));
+        } catch(NumberFormatException e){
+            return 0;
+        }
     }
 
     /**
@@ -170,7 +183,7 @@ public class VaultManager {
 
         ConfigurationSection section = config.getConfigurationSection("template_vaults");
         if(section == null)
-            section = config.createSection("tempalte_vaults");
+            section = config.createSection("template_vaults");
 
         ConfigurationSection vaultSection = section.getConfigurationSection(vaultName);
         if(vaultSection == null){
@@ -200,7 +213,10 @@ public class VaultManager {
         if(vaultSize == -1)
             return null;
 
-        return new TemplateVault(vaultName, vaultSize, false);
+        // Cache it so every caller shares one edit-mode flag.
+        TemplateVault vault = new TemplateVault(vaultName, vaultSize, false);
+        templateVaults.put(vaultName, vault);
+        return vault;
     }
 
     /**
@@ -215,9 +231,16 @@ public class VaultManager {
         if(vault == null) return false;
         if(vault.isEditMode()) return false;
 
-        Inventory inventory = vault.getInventory(playerUUID, toForce);
         Player player = Bukkit.getPlayer(UUID.fromString(playerUUID));
         if(player == null) return false;
+
+        Inventory inventory;
+        try {
+            inventory = vault.getInventory(playerUUID, toForce);
+        } catch(IOException e){
+            SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, e);
+            return false;
+        }
 
         player.openInventory(inventory);
         return true;
@@ -266,8 +289,13 @@ public class VaultManager {
                     otherPlayer.closeInventory();
             }
 
-            vault.startEditMode(player);
-
+            try {
+                vault.startEditMode(player);
+            } catch(IOException e){
+                SneakyVaults.LOGGER.log(Level.SEVERE, "Template vault " + vaultName + " could not be read", e);
+                player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cTemplate Vault could not be read! Its data was left unchanged."));
+                return false;
+            }
         }
 
         return true;
@@ -284,6 +312,7 @@ public class VaultManager {
             section = config.createSection("template_vaults");
 
         section.set(vaultName, null);
+        templateVaults.remove(vaultName);
         SneakyVaults.getInstance().saveConfig();
     }
 
