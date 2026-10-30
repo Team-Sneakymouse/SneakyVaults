@@ -18,6 +18,8 @@ import static java.nio.file.StandardOpenOption.WRITE;
 
 /**
  * Persists small YAML documents by replacing the destination atomically.
+ * All writes and deletes of PlayerData, CharacterData and Businesses files go through here (not
+ * {@code YamlConfiguration.save(File)}), so a crash cannot leave a half-written inventory.
  *
  * <p>This class prevents readers from observing a partial file. It does not
  * order concurrent saves to the same path. If callers can save concurrently,
