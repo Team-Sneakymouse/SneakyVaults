@@ -240,6 +240,15 @@ public class VaultManager {
      * @return True if the vault was opened, False otherwise
      * */
     public boolean openTemplateVault(String playerUUID, String vaultName, boolean toForce){
+        long opened = SneakyVaults.getInstance().probe.start();
+        try {
+            return openTemplate(playerUUID, vaultName, toForce);
+        } finally {
+            SneakyVaults.getInstance().probe.end("vault.template.open", opened);
+        }
+    }
+
+    private boolean openTemplate(String playerUUID, String vaultName, boolean toForce){
         TemplateVault vault = getOrCreateTemplateVault(vaultName);
         if(vault == null) return false;
         if(vault.isEditMode()) return false;
@@ -248,14 +257,22 @@ public class VaultManager {
         if(player == null) return false;
 
         Inventory inventory;
+        long loading = SneakyVaults.getInstance().probe.start();
         try {
             inventory = vault.getInventory(playerUUID, toForce);
         } catch(IOException e){
             SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, e);
             return false;
+        } finally {
+            SneakyVaults.getInstance().probe.end("vault.template.load", loading);
         }
 
-        player.openInventory(inventory);
+        long shown = SneakyVaults.getInstance().probe.start();
+        try {
+            player.openInventory(inventory);
+        } finally {
+            SneakyVaults.getInstance().probe.end("vault.template.open-inventory", shown);
+        }
         return true;
     }
 

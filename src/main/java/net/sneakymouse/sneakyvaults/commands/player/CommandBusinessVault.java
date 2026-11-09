@@ -2,6 +2,7 @@ package net.sneakymouse.sneakyvaults.commands.player;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandBase;
+import net.sneakymouse.sneakyvaults.integration.Probe;
 import net.sneakymouse.sneakyvaults.integration.CharacterHook;
 import net.sneakymouse.sneakyvaults.types.Business;
 import net.sneakymouse.sneakyvaults.types.SharedVault;
@@ -25,6 +26,17 @@ public class CommandBusinessVault extends CommandBase {
 
     @Override
     public boolean execute(@NotNull CommandSender sender, @NotNull String label, @NotNull String[] args) {
+        Probe probe = SneakyVaults.getInstance().probe;
+        long opened = probe.start();
+        try {
+            return open(sender, args);
+        } finally {
+            probe.end("vault.business.open", opened);
+        }
+    }
+
+    /** The command itself; timed as a whole by execute, its load and openInventory separately. */
+    private boolean open(@NotNull CommandSender sender, @NotNull String[] args) {
         if(!(sender instanceof Player player)) return false;
 
         if(!SneakyVaults.getInstance().hasCharacters()) {
@@ -82,15 +94,26 @@ public class CommandBusinessVault extends CommandBase {
 
         SharedVault vault;
         try {
-            vault = SneakyVaults.getInstance().sharedVaultManager.getBusinessVault(business, vaultNumber, true);
+            long loading = SneakyVaults.getInstance().probe.start();
+            try {
+                vault = SneakyVaults.getInstance().sharedVaultManager.getBusinessVault(business, vaultNumber, true);
+            } finally {
+                SneakyVaults.getInstance().probe.end("vault.business.load", loading);
+            }
         } catch(IOException e) {
             SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable business vault " + vaultNumber + " of " + business.getId(), e);
             player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));
             return false;
         }
 
-        if(vault != null)
-            player.openInventory(vault.getInventory());
+        if(vault != null) {
+            long shown = SneakyVaults.getInstance().probe.start();
+            try {
+                player.openInventory(vault.getInventory());
+            } finally {
+                SneakyVaults.getInstance().probe.end("vault.business.open-inventory", shown);
+            }
+        }
         return false;
     }
 

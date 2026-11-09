@@ -7,5 +7,6 @@ depend:
 softdepend:
   - CoreProtect
   - SneakyCharacterManager
+  - SneakyDiagnostics
 authors:
   - Bungo

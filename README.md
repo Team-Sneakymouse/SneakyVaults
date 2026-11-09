@@ -26,6 +26,12 @@ All need `sneakyvaults.admin.<command>`.
 - `/templates`, `/opentemplate`: preset template vaults.
 - `/forcevaultconversions`: convert old global vault data to Paper serialization.
 
+## Diagnostics
+
+Measured by [SneakyDiagnostics](https://github.com/Team-Sneakymouse/SneakyDiagnostics) when it is installed (optional): `/diagnostics plugins start 60 SneakyVaults`.
+Setup and rules: [plugin-providers.md](https://github.com/Team-Sneakymouse/SneakyDiagnostics/blob/main/docs/plugin-providers.md).
+Sections, per vault kind (`player` for `/openvault`, `character`, `business`, `template` for `openTemplateVault`): `vault.<kind>.open` (the whole command or call), with `vault.<kind>.load` (finding or reading the vault and building its inventory) and `vault.<kind>.open-inventory` (`Player.openInventory`, which includes every plugin's inventory listeners, such as SneakyItems' inventory update). Admin peek, search and edit commands are not measured. No counts or levels.
+
 ## Data
 
 In `plugins/SneakyVaults/`:

@@ -8,6 +8,7 @@ import net.sneakymouse.sneakyvaults.events.CoreProtectLoggerEvents;
 import net.sneakymouse.sneakyvaults.events.EditSessionListener;
 import net.sneakymouse.sneakyvaults.events.InventoryListener;
 import net.sneakymouse.sneakyvaults.integration.CharacterHook;
+import net.sneakymouse.sneakyvaults.integration.Probe;
 import net.sneakymouse.sneakyvaults.managers.SharedVaultManager;
 import net.sneakymouse.sneakyvaults.managers.VaultManager;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
@@ -38,6 +39,8 @@ public class SneakyVaults extends JavaPlugin {
     private boolean characters = false;
 
     public Plugin msPlugin = null;
+    /** SneakyDiagnostics measurements (optional): vault load and openInventory timing, see the README. */
+    public final Probe probe = new Probe(this, "sneakyvaults-ticks-1");
 
     @Override
     public void onEnable() {
@@ -97,10 +100,13 @@ public class SneakyVaults extends JavaPlugin {
 
         if(characters)
             getServer().getPluginManager().registerEvents(new CharacterHook(), this);
+
+        probe.hook();
     }
 
     @Override
     public void onDisable() {
+        probe.unhook();
         if(vaultManager != null) vaultManager.saveAllVaults();
         if(sharedVaultManager != null) sharedVaultManager.saveAll();
     }
