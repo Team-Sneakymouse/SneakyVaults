@@ -5,6 +5,7 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandAdminBase;
+import net.sneakymouse.sneakyvaults.integration.MagicItemHook;
 import com.sneakyutils.util.TextUtility;
 import com.sneakyutils.util.InventoryUtility;
 import org.bukkit.Bukkit;
@@ -19,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 public class CommandSearchVault extends CommandAdminBase {
 
@@ -64,7 +66,7 @@ public class CommandSearchVault extends CommandAdminBase {
         super("searchvault");
         vaultData = SneakyVaults.getInstance().playerDataFolder;
 
-        this.usageMessage = "/searchvault [name/id] [Item Name / Item ID]";
+        this.usageMessage = "/searchvault [name/id/magicitem] [Item Name / Item ID / Magic Item Name]";
     }
 
 
@@ -76,8 +78,7 @@ public class CommandSearchVault extends CommandAdminBase {
             return false;
         }
 
-        sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&eSearching for item..."));
-        boolean isName = args[0].equalsIgnoreCase("name");
+        String type = args[0];
         StringBuilder builder = new StringBuilder();
 
         for(int i = 1; i < args.length; i++){
@@ -85,9 +86,20 @@ public class CommandSearchVault extends CommandAdminBase {
         }
         String itemData = builder.substring(0, builder.length()-1);
 
+        Predicate<ItemStack> matcher;
+        if(type.equalsIgnoreCase("magicitem")) {
+            if(!MagicItemHook.available()) {
+                sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&cSneakyItems is not enabled, so magic items can't be searched."));
+                return false;
+            }
+            matcher = item -> itemData.equalsIgnoreCase(MagicItemHook.keyOf(item));
+        } else {
+            matcher = containsMatcher(itemData, type.equalsIgnoreCase("name"));
+        }
+
+        sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&eSearching for item..."));
         searchPlayerVaults(
-                itemData,
-                isName,
+                matcher,
                 (result) -> sender.sendMessage(TextUtility.INSTANCE.convertToComponent(result.message).clickEvent(
                         ClickEvent.suggestCommand("/peekvault " + result.playerUUID + " " + result.vaultNumber)
                 )),
@@ -97,7 +109,37 @@ public class CommandSearchVault extends CommandAdminBase {
         return false;
     }
 
-    private void searchPlayerVaults(String data, boolean isName, Consumer<SearchResultData> onResultfound, Runnable onComplete) {
+    @Override
+    public @NotNull List<String> tabComplete(@NotNull CommandSender sender, @NotNull String alias, @NotNull String[] args) throws IllegalArgumentException {
+        if(args.length == 1) return List.of("id", "name", "magicitem");
+        return super.tabComplete(sender, alias, args);
+    }
+
+    /** The original name/id search: case-insensitive substring of the display name or material key. */
+    private static Predicate<ItemStack> containsMatcher(String data, boolean isName) {
+        return item -> {
+            String key;
+            if(isName) {
+                if (item.getItemMeta() != null && item.getItemMeta().hasDisplayName()) {
+                    Component displayName = item.getItemMeta().displayName();
+                    key =  PlainTextComponentSerializer.plainText().serialize(displayName);
+                } else {
+                    // Return the type name of the item if there's no custom display name
+                    key = item.getType().toString().toLowerCase().replace('_', ' ');
+                }
+            }
+            else {
+                if(item.getType().isLegacy()){
+                    key = item.getType().toString();
+                } else {
+                    key = item.getType().getKey().toString();
+                }
+            }
+            return key.toLowerCase().contains(data.toLowerCase());
+        };
+    }
+
+    private void searchPlayerVaults(Predicate<ItemStack> matcher, Consumer<SearchResultData> onResultfound, Runnable onComplete) {
         if(!vaultData.exists() || !vaultData.isDirectory()) {
             onComplete.run();
             return;
@@ -134,25 +176,7 @@ public class CommandSearchVault extends CommandAdminBase {
 
                     for(ItemStack item : items){
                         if(item == null) continue;
-                        String key;
-                        if(isName) {
-                            if (item.getItemMeta() != null && item.getItemMeta().hasDisplayName()) {
-                                Component displayName = item.getItemMeta().displayName();
-                                key =  PlainTextComponentSerializer.plainText().serialize(displayName);
-                            } else {
-                                // Return the type name of the item if there's no custom display name
-                                key = item.getType().toString().toLowerCase().replace('_', ' ');
-                            }
-                        }
-                        else {
-                            if(item.getType().isLegacy()){
-                                key = item.getType().toString();
-                            } else {
-                                key = item.getType().getKey().toString();
-                            }
-                        }
-
-                        if(key.toLowerCase().contains(data.toLowerCase())) {
+                        if(matcher.test(item)) {
                             Bukkit.getScheduler().runTask(SneakyVaults.getInstance(), () -> onResultfound.accept(
                                     new SearchResultData(
                                             playerDataFile.getName().replace(".yml", ""),

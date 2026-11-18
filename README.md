@@ -22,7 +22,7 @@ All need `sneakyvaults.admin.<command>`.
 - `/business list|create|delete|rename|add|remove|members|setvaults|setsize|open`. Membership is per character: `add <id> <player>` adds the character that player is loaded into. `delete <id> confirm` moves the file to `Businesses/deleted/`.
 - `/peekvault <player|uuid> [n]`: open an existing global vault.
 - `/peekcvault <online player|character uuid> [n]`: open an existing character vault.
-- `/searchvault name|id <text>`: search global vaults.
+- `/searchvault name|id|magicitem <text>`: search global vaults (`name`/`id` match a substring; `magicitem` matches the SneakyItems magic-item name exactly, e.g. `item-characterCrystal`, and needs SneakyItems).
 - `/templates`, `/opentemplate`: preset template vaults.
 - `/forcevaultconversions`: convert old global vault data to Paper serialization.
 

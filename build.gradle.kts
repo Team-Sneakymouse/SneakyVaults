@@ -27,7 +27,7 @@ repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://maven.playpro.com")
-    maven("https://maven.sneakyrp.com/releases")
+    maven("https://maven.sneakyrp.com/sneakymouse")
 }
 
 dependencies {
@@ -37,6 +37,8 @@ dependencies {
     // optional at runtime: SneakyDiagnostics measures the plugin when installed (integration/Probe.java); never bundled
     compileOnly("io.github.team-sneakymouse:SneakyDiagnostics-API:2026.10.30-3b422b67e32e")
     // Optional (softdepend): only reached through integration/
+    // Optional (softdepend): magic-item lookups, only reached through integration/MagicItemHook
+    compileOnly("io.github.team-sneakymouse:sneakyitems:2026.11.14-ab23dacd2d06") { isTransitive = false }
     compileOnly("io.github.team-sneakymouse:sneakycharactermanager-paper:2026.10.22-cb1ace342180") {
         exclude(group = "org.jetbrains.kotlin")
         isTransitive = false
@@ -124,7 +126,7 @@ publishing {
     repositories {
         maven {
             name = "sneakyrp"
-            url = uri("https://maven.sneakyrp.com/releases")
+            url = uri("https://maven.sneakyrp.com/sneakymouse")
             credentials(PasswordCredentials::class)
             authentication {
                 create<org.gradle.authentication.http.BasicAuthentication>("basic")
