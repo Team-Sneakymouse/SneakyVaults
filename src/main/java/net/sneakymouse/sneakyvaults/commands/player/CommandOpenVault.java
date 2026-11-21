@@ -65,7 +65,7 @@ public class CommandOpenVault extends CommandBase {
         SneakyVaults.getInstance().vaultManager.getPlayerVault(playerUUID, vaultNumber).whenComplete((vault, error) -> {
             // Runs on the server thread, now or once the vault has been read. By then the player may have
             // left, opened something newer, or lost the command permission.
-            if(!player.isOnline() || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) return;
+            if(!player.isConnected() || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) return;
             if(error != null){
                 SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable vault " + number + " for " + playerUUID, PersistenceQueue.cause(error));
                 player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));
@@ -81,17 +81,19 @@ public class CommandOpenVault extends CommandBase {
                 return;
             }
             vault.growTo(SneakyVaults.getInstance().vaultManager.getMaxVaultSize(playerUUID));
-            show(player, vault);
-            vault.isOpened = true;
+            // Another plugin can cancel the open; then the vault must not stay marked as opened.
+            if(show(player, vault))
+                vault.isOpened = true;
         });
         return false;
     }
 
-    private static void show(Player player, PlayerVault vault) {
+    /** @return False if another plugin cancelled the open. */
+    private static boolean show(Player player, PlayerVault vault) {
         Probe probe = SneakyVaults.getInstance().probe;
         long shown = probe.start();
         try {
-            player.openInventory(vault.getInventory());
+            return player.openInventory(vault.getInventory()) != null;
         } finally {
             probe.end("vault.player.open-inventory", shown);
         }

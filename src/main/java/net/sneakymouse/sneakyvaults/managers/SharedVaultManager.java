@@ -28,8 +28,9 @@ import java.util.logging.Level;
  * There is one inventory per vault, shared by all its viewers. A vault is held in a {@link VaultStore}:
  * it stays loaded until its last close was written and nobody is looking at it.
  *
- * <p>Server thread only. Files are read and written on the persistence queue; the futures returned
- * here complete on the server thread.
+ * <p>Server thread only. Files are read and written on the persistence queue. Futures of loads and opens
+ * complete on the server thread; futures of saves (such as {@code onClose}) complete on the persistence
+ * thread when the write finishes.
  */
 public class SharedVaultManager {
 

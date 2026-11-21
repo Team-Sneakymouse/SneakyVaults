@@ -122,6 +122,13 @@ public final class PersistenceQueue {
         return executor.awaitTermination(timeout, unit);
     }
 
+    /** True once {@link #shutdown} was called. */
+    boolean isShutdown() {
+        synchronized(lock) {
+            return closed;
+        }
+    }
+
     /** The exception a task threw, without the wrappers CompletableFuture adds. */
     public static Throwable cause(Throwable throwable) {
         Throwable cause = throwable;

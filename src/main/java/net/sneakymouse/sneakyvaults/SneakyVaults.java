@@ -13,10 +13,14 @@ import net.sneakymouse.sneakyvaults.managers.SharedVaultManager;
 import net.sneakymouse.sneakyvaults.managers.VaultManager;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
 import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
+import net.sneakymouse.sneakyvaults.types.PlayerVault;
+import net.sneakymouse.sneakyvaults.types.SharedVault;
+import net.sneakymouse.sneakyvaults.types.TemplateVault;
 import com.sneakyutils.util.TextUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.permissions.Permission;
 import org.bukkit.permissions.PermissionDefault;
 import org.bukkit.plugin.IllegalPluginAccessException;
@@ -149,8 +153,16 @@ public class SneakyVaults extends JavaPlugin {
     public void onDisable() {
         probe.unhook();
         try {
+            // Snapshot open vaults first. Bukkit no longer calls a disabling plugin's listeners, so closing
+            // views does not save them; it only ensures that, on a plugin reload, no player keeps a view whose
+            // later changes would be lost. Nothing can change between the snapshot and the close.
             if(vaultManager != null) vaultManager.saveAllVaults();
             if(sharedVaultManager != null) sharedVaultManager.saveAll();
+            for(Player player : getServer().getOnlinePlayers()) {
+                InventoryHolder holder = player.getOpenInventory().getTopInventory().getHolder();
+                if(holder instanceof PlayerVault || holder instanceof SharedVault || holder instanceof TemplateVault)
+                    player.closeInventory();
+            }
         } finally {
             if(persistence != null) drainPersistence();
         }
@@ -177,7 +189,7 @@ public class SneakyVaults extends JavaPlugin {
             LOGGER.log(Level.SEVERE, logMessage, PersistenceQueue.cause(error));
             if(notify == null) return;
             serverThread.execute(() -> {
-                if(notify instanceof Player player && !player.isOnline()) return;
+                if(notify instanceof Player player && !player.isConnected()) return;
                 notify.sendMessage(TextUtility.INSTANCE.convertToComponent(message));
             });
         });

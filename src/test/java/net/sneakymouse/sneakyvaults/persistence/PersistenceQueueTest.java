@@ -155,10 +155,10 @@ class PersistenceQueueTest {
             order.add("first");
         });
 
+        // Release the worker only once shutdown has closed the queue, so the worker branch is always taken.
         Thread releaser = new Thread(() -> {
-            try {
-                Thread.sleep(50);
-            } catch(InterruptedException ignored) {}
+            while(!queue.isShutdown())
+                Thread.onSpinWait();
             shuttingDown.countDown();
         });
         releaser.start();
@@ -167,7 +167,7 @@ class PersistenceQueueTest {
 
         assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < 2_000, "the worker must not wait for itself");
         continuation.get().get(1, TimeUnit.SECONDS);
-        assertTrue(order.containsAll(List.of("continuation", "first")));
+        assertEquals(List.of("continuation", "first"), order, "ran at once, on the worker, before its caller finished");
     }
 
     @Test

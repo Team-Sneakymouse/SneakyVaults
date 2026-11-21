@@ -82,7 +82,7 @@ public class CommandCharacterVault extends CommandBase {
             // Runs on the server thread, now or once the vault has been read.
             if(error != null) {
                 SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable character vault " + number + " for " + character.uuid(), PersistenceQueue.cause(error));
-                if(player.isOnline())
+                if(player.isConnected())
                     player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));
                 return;
             }
@@ -92,7 +92,7 @@ public class CommandCharacterVault extends CommandBase {
             }
             // While the vault was read the player may have left, switched character, opened something
             // newer, or lost the command, vault-count or slots permission.
-            CharacterHook.CharacterRef current = player.isOnline() ? CharacterHook.current(player) : null;
+            CharacterHook.CharacterRef current = player.isConnected() ? CharacterHook.current(player) : null;
             if(current == null || !current.uuid().equals(character.uuid())
                     || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)
                     || number > VaultManager.maxVaultsFromPermissions(player, SharedVaultManager.CHARACTER_MAX_PREFIX)
@@ -103,7 +103,8 @@ public class CommandCharacterVault extends CommandBase {
 
             long shown = SneakyVaults.getInstance().probe.start();
             try {
-                player.openInventory(vault.getInventory());
+                if(player.openInventory(vault.getInventory()) == null)
+                    manager.release(vault);
             } finally {
                 SneakyVaults.getInstance().probe.end("vault.character.open-inventory", shown);
             }

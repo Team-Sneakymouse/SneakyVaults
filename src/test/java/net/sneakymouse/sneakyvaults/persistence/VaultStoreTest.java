@@ -252,6 +252,46 @@ class VaultStoreTest {
     }
 
     @Test
+    void whenWrittenSucceedsOnceEveryMatchingWriteIsOnDisk() throws Exception {
+        Vault a = open("shop:1");
+        Vault other = open("farm:1");
+        CountDownLatch stall = new CountDownLatch(1);
+        queue.run(() -> await(stall));
+        close("shop:1", a);
+        other.open = false;
+        store.save("farm:1", () -> { throw new IOException("unrelated"); });
+
+        CompletableFuture<Void> written = store.whenWritten(key -> key.startsWith("shop:"));
+        assertFalse(written.isDone(), "waits for the pending shop write");
+        stall.countDown();
+        written.get(5, TimeUnit.SECONDS);
+        assertFalse(written.isCompletedExceptionally(), "another owner's failed write does not count");
+    }
+
+    @Test
+    void removeCleanIfDropsLoadedUnusedEntriesOnly() throws Exception {
+        CompletableFuture<Vault> unused = load("shop:1");
+        open("shop:2");
+        settle();
+
+        assertEquals(1, store.removeCleanIf(key -> key.startsWith("shop:")));
+        assertFalse(store.isLoaded("shop:1"));
+        assertTrue(store.isLoaded("shop:2"), "still in use");
+        assertTrue(unused.isDone());
+    }
+
+    @Test
+    void valuePutWhileALoadIsInFlightWinsOverTheLoadedData() throws Exception {
+        disk.put("copy", "old copy");
+        CompletableFuture<Vault> loading = load("copy");
+        Vault fresh = new Vault("fresh template");
+        store.put("copy", fresh);
+        settle();
+
+        assertSame(fresh, loading.get(), "the builder must not replace a value that is already loaded");
+    }
+
+    @Test
     void putReplacesTheValueWhileTheOldWriteIsPending() throws Exception {
         disk.put("copy", "old");
         Vault old = open("copy");

@@ -27,7 +27,7 @@ public class EditSessionListener implements Listener {
     }
 
     private static void handleSizeAnswer(Player player, String message){
-        if(!player.isOnline() || !SneakyVaults.getInstance().vaultManager.vaultSizeSession.containsKey(player.getUniqueId().toString()))
+        if(!player.isConnected() || !SneakyVaults.getInstance().vaultManager.vaultSizeSession.containsKey(player.getUniqueId().toString()))
             return;
 
         if(message.equalsIgnoreCase("cancel")){

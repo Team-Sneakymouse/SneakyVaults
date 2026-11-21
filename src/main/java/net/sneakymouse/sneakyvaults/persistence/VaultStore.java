@@ -22,14 +22,17 @@ import java.util.function.Predicate;
  *
  * <ul>
  *   <li>So a cache miss means disk is up to date, and a read can never race a pending write of the same key.</li>
- *   <li>A failed write keeps the entry: the next open uses the in-memory value, and {@link #needingSave()}
- *       lists it for another try.</li>
+ *   <li>A failed write keeps the entry: the next open uses the in-memory value, and
+ *       {@link #forEachNeedingSave} lists it for another try.</li>
  *   <li>A clean, unused entry needs no saving: its contents are already on disk.</li>
  * </ul>
  *
  * <p>Server thread only, apart from the read and write tasks, which run on the {@link PersistenceQueue}.
- * Futures returned here complete on the server thread. This class has no Bukkit dependency: values are
- * opaque, and the caller says when one is in use.
+ * {@link #load} completes on the server thread. {@link #save} and {@link #whenWritten} complete on the
+ * persistence thread when the write finishes: hop to the server thread before touching Bukkit state there
+ * (completing them on the server thread would lose failure reports during shutdown, when the plugin can no
+ * longer schedule tasks). This class has no Bukkit dependency: values are opaque, and the caller says when
+ * one is in use.
  *
  * @param <D> The plain data read from disk.
  * @param <V> The live value built from it on the server thread (a vault).
@@ -131,7 +134,7 @@ public final class VaultStore<D, V> {
      * Server thread: queue a write of a key's current contents. The caller snapshots them on the server
      * thread and hands the write plain data. The entry is dropped once this write succeeds, if it is
      * still the latest write and the value is unused by then.
-     * @return Completes when written, or exceptionally if the write failed.
+     * @return Completes on the persistence thread when written, or exceptionally if the write failed.
      */
     public CompletableFuture<Void> save(String key, PersistenceQueue.VoidTask write) {
         CompletableFuture<Void> written = persistence.run(write);
@@ -159,7 +162,7 @@ public final class VaultStore<D, V> {
 
     /**
      * Completes when the latest write of every matching key has succeeded, or exceptionally if one failed.
-     * Snapshot of the writes pending now; later writes are not included.
+     * Snapshot of the writes pending now; later writes are not included. Completes on the persistence thread.
      */
     public CompletableFuture<Void> whenWritten(Predicate<String> keys) {
         return CompletableFuture.allOf(entries.entrySet().stream()

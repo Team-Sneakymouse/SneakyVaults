@@ -47,7 +47,8 @@ public class CommandForceConversion extends CommandAdminBase {
         // Files or vaults that were skipped or could not be written, counted across all three steps.
         AtomicInteger problems = new AtomicInteger();
         plugin.persistence.submit(() -> {
-                    File[] playerDataFiles = folder.listFiles();
+                    // Skip leftover temporary files of interrupted writes (".<name>.yml.<n>.tmp").
+                    File[] playerDataFiles = folder.listFiles((dir, name) -> name.endsWith(".yml") && !name.startsWith("."));
                     return playerDataFiles == null ? null : findLegacyVaults(playerDataFiles, problems);
                 })
                 .thenApplyAsync(legacy -> legacy == null ? null : convert(legacy, problems), plugin.serverThread)

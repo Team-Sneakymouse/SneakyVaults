@@ -31,8 +31,9 @@ import static net.sneakymouse.sneakyvaults.SneakyVaults.IDENTIFIER;
  * in-memory inventory is the authoritative copy. Global vaults stay loaded for the session; a template
  * copy is dropped once its last close was written and the player isn't looking at it.
  *
- * <p>Server thread only. Files are read and written on the persistence queue; the futures returned
- * here complete on the server thread.
+ * <p>Server thread only. Files are read and written on the persistence queue. Futures of loads and opens
+ * complete on the server thread; futures of saves (such as {@code onClose}) complete on the persistence
+ * thread when the write finishes.
  */
 public class VaultManager {
 
@@ -272,8 +273,11 @@ public class VaultManager {
                 SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, e);
                 return CompletableFuture.completedFuture(false);
             }
+            // Keep the fresh copy only once it is open: if another plugin cancels the open, an unused fresh
+            // copy would otherwise replace the player's real one and be saved over it on a later open.
+            if(!showTemplate(player, fresh))
+                return CompletableFuture.completedFuture(false);
             templateCopies.put(key, fresh);
-            showTemplate(player, fresh);
             return CompletableFuture.completedFuture(true);
         }
 
@@ -296,20 +300,24 @@ public class VaultManager {
             }
             if(copy == null) return false;
             // While the copy was read the player may have left or opened something newer.
-            if(!player.isOnline() || !SneakyVaults.getInstance().isLatestOpen(player, request)
+            if(!player.isConnected() || !SneakyVaults.getInstance().isLatestOpen(player, request)
                     || vault.isEditMode() || templateVaults.get(vaultName) != vault) {
                 templateCopies.release(key);
                 return false;
             }
-            showTemplate(player, copy);
+            if(!showTemplate(player, copy)) {
+                templateCopies.release(key);
+                return false;
+            }
             return true;
         });
     }
 
-    private static void showTemplate(Player player, Inventory copy) {
+    /** @return False if another plugin cancelled the open. */
+    private static boolean showTemplate(Player player, Inventory copy) {
         long shown = SneakyVaults.getInstance().probe.start();
         try {
-            player.openInventory(copy);
+            return player.openInventory(copy) != null;
         } finally {
             SneakyVaults.getInstance().probe.end("vault.template.open-inventory", shown);
         }

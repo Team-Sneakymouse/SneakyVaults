@@ -70,7 +70,7 @@ public class CommandPeekCharacterVault extends CommandAdminBase {
             // Runs on the server thread, now or once the vault has been read.
             if(error != null) {
                 SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable character vault " + number + " for " + character, PersistenceQueue.cause(error));
-                if(player.isOnline())
+                if(player.isConnected())
                     player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. Its file was left unchanged."));
                 return;
             }
@@ -79,11 +79,12 @@ public class CommandPeekCharacterVault extends CommandAdminBase {
                 return;
             }
             // The admin may have left, opened something newer, or lost the command permission meanwhile.
-            if(!player.isOnline() || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) {
+            if(!player.isConnected() || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) {
                 manager.release(vault);
                 return;
             }
-            player.openInventory(vault.getInventory());
+            if(player.openInventory(vault.getInventory()) == null)
+                manager.release(vault);
         });
         return false;
     }

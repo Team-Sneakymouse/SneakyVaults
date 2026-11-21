@@ -69,7 +69,7 @@ public class CommandPeekVault extends CommandAdminBase {
         SneakyVaults.getInstance().vaultManager.getExistingPlayerVault(target.toString(), vaultNumber).whenComplete((vault, error) -> {
             // Runs on the server thread, now or once the vault has been read. By then the admin may have
             // left, opened something newer, or lost the command permission.
-            if(!player.isOnline() || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) return;
+            if(!player.isConnected() || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) return;
             if(error != null) {
                 SneakyVaults.LOGGER.log(
                         Level.SEVERE,

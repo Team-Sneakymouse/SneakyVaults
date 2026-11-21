@@ -106,7 +106,7 @@ public class CommandBusiness extends CommandAdminBase {
                 business.getMembers().put(character.uuid(), new Business.Member(character.name(), target.getUniqueId().toString()));
                 afterSave(sender, business.save(), args, () -> {
                     send(sender, "&eAdded " + character.name() + " (" + target.getName() + ") to " + business.getName() + ".");
-                    if(target.isOnline())
+                    if(target.isConnected())
                         send(target, "&a" + character.name() + " has joined " + business.getName() + "! Use /bvault to open its vaults.");
                 });
             }
@@ -161,12 +161,13 @@ public class CommandBusiness extends CommandAdminBase {
                     }
                     if(!manager.isCurrent(business)) { send(sender, "&cThat business was deleted."); return; }
                     if(vault == null) { send(sender, "&cThat vault has never been used."); return; }
-                    if(!player.isOnline() || !manager.isCurrent(business)
+                    if(!player.isConnected() || !manager.isCurrent(business)
                             || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) {
                         manager.release(vault);
                         return;
                     }
-                    player.openInventory(vault.getInventory());
+                    if(player.openInventory(vault.getInventory()) == null)
+                        manager.release(vault);
                 });
             }
             default -> send(sender, "&cInvalid Usage: " + this.usageMessage);
