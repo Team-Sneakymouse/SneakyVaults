@@ -1,0 +1,221 @@
+# The bank's vault wall: right-clicking one of these blocks opens that player's global vault (/vault <n>),
+# offers to sell it, or says what is missing. Replaces MagicSpells spells-city-vaults.yml.
+#
+# Turn on only after spells-city-vaults.yml and statTrading-vaultDiscount are gone from MagicSpells, or both answer
+# the same click. Needs SneakyVariables; reload with /vaultwall reload.
+enabled: false
+
+# Price discount in percent (a whole number from 0 to 100) read from this player variable. '' for none.
+# Price paid = ceil(amount * (100 - discount) / 100), as the old Trading "Vault Discount" spell computed it.
+discount_variable: skillTradingTier4A
+
+# Chests, by id (used by /vaultwall grant|reset):
+#   location: world,x,y,z of the block to click
+#   vault: the global vault number it opens. Opening still needs sneakyvaults.max.<n> and sneakyvaults.slots.<size>.
+#   price: { currency: <bank variable>, amount: <number>, label: <name in the menu> }
+#     with owned_variable: the player variable (0/1) that remembers the purchase. SneakyVaults defines it.
+#   requires: { variable: <player variable>, min: <number>, message: <toast text> }  checked before anything else.
+#   existing_only: true  opens only a vault the player already has saved data for; nobody gets a new one.
+#   No price, requires or existing_only: free for everyone.
+chests:
+  # Penny
+  penny-1:
+    location: world,5031,60,5016
+    vault: 1
+    owned_variable: vaultPenny1
+    price: { currency: bankPenny, amount: 100, label: Pennies }
+  penny-2:
+    location: world,5031,60,5018
+    vault: 2
+    owned_variable: vaultPenny2
+    price: { currency: bankPenny, amount: 1000, label: Pennies }
+  penny-3:
+    location: world,5031,61,5016
+    vault: 3
+    owned_variable: vaultPenny3
+    price: { currency: bankPenny, amount: 10000, label: Pennies }
+  penny-4:
+    location: world,5031,61,5018
+    vault: 4
+    owned_variable: vaultPenny4
+    price: { currency: bankPenny, amount: 100000, label: Pennies }
+  penny-5:
+    location: world,5031,62,5016
+    vault: 5
+    owned_variable: vaultPenny5
+    price: { currency: bankPenny, amount: 1000000, label: Pennies }
+  penny-6:
+    location: world,5031,62,5018
+    vault: 6
+    owned_variable: vaultPenny6
+    price: { currency: bankPenny, amount: 10000000, label: Pennies }
+  penny-7:
+    location: world,5031,63,5016
+    vault: 7
+    owned_variable: vaultPenny7
+    price: { currency: bankPenny, amount: 100000000, label: Pennies }
+  penny-8:
+    location: world,5031,63,5018
+    vault: 8
+    owned_variable: vaultPenny8
+    price: { currency: bankPenny, amount: 1000000000, label: Pennies }
+  # Silver
+  silver-1:
+    location: world,5029,60,5020
+    vault: 11
+    owned_variable: vaultSilver1
+    price: { currency: bankSilver, amount: 25, label: Silver }
+  silver-2:
+    location: world,5027,60,5020
+    vault: 12
+    owned_variable: vaultSilver2
+    price: { currency: bankSilver, amount: 100, label: Silver }
+  silver-3:
+    location: world,5029,61,5020
+    vault: 13
+    owned_variable: vaultSilver3
+    price: { currency: bankSilver, amount: 500, label: Silver }
+  silver-4:
+    location: world,5027,61,5020
+    vault: 14
+    owned_variable: vaultSilver4
+    price: { currency: bankSilver, amount: 2500, label: Silver }
+  silver-5:
+    location: world,5029,62,5020
+    vault: 15
+    owned_variable: vaultSilver5
+    price: { currency: bankSilver, amount: 10000, label: Silver }
+  silver-6:
+    location: world,5027,62,5020
+    vault: 16
+    owned_variable: vaultSilver6
+    price: { currency: bankSilver, amount: 50000, label: Silver }
+  silver-7:
+    location: world,5029,63,5020
+    vault: 17
+    owned_variable: vaultSilver7
+    price: { currency: bankSilver, amount: 250000, label: Silver }
+  silver-8:
+    location: world,5027,63,5020
+    vault: 18
+    owned_variable: vaultSilver8
+    price: { currency: bankSilver, amount: 1000000, label: Silver }
+  # Gold
+  gold-1:
+    location: world,5025,60,5018
+    vault: 21
+    owned_variable: vaultGold1
+    price: { currency: bankGold, amount: 1, label: Gold }
+  gold-2:
+    location: world,5025,60,5016
+    vault: 22
+    owned_variable: vaultGold2
+    price: { currency: bankGold, amount: 5, label: Gold }
+  gold-3:
+    location: world,5025,61,5018
+    vault: 23
+    owned_variable: vaultGold3
+    price: { currency: bankGold, amount: 25, label: Gold }
+  gold-4:
+    location: world,5025,61,5016
+    vault: 24
+    owned_variable: vaultGold4
+    price: { currency: bankGold, amount: 100, label: Gold }
+  gold-5:
+    location: world,5025,62,5018
+    vault: 25
+    owned_variable: vaultGold5
+    price: { currency: bankGold, amount: 500, label: Gold }
+  gold-6:
+    location: world,5025,62,5016
+    vault: 26
+    owned_variable: vaultGold6
+    price: { currency: bankGold, amount: 2500, label: Gold }
+  gold-7:
+    location: world,5025,63,5016
+    vault: 27
+    owned_variable: vaultGold7
+    price: { currency: bankGold, amount: 10000, label: Gold }
+  gold-8:
+    location: world,5025,63,5018
+    vault: 28
+    owned_variable: vaultGold8
+    price: { currency: bankGold, amount: 55555, label: Gold }
+  # Existing skill "Vault Master": chest N needs rank N.
+  skill-1:
+    location: world,5031,64,5016
+    vault: 31
+    requires: { variable: skillExistingTier7A, min: 1 }
+  skill-2:
+    location: world,5031,64,5018
+    vault: 32
+    requires: { variable: skillExistingTier7A, min: 2 }
+  skill-3:
+    location: world,5029,64,5020
+    vault: 33
+    requires: { variable: skillExistingTier7A, min: 3 }
+  skill-4:
+    location: world,5027,64,5020
+    vault: 34
+    requires: { variable: skillExistingTier7A, min: 4 }
+  skill-5:
+    location: world,5025,64,5018
+    vault: 35
+    requires: { variable: skillExistingTier7A, min: 5 }
+  skill-6:
+    location: world,5025,64,5016
+    vault: 36
+    requires: { variable: skillExistingTier7A, min: 6 }
+  # Vault Master ranks 7-10 (vaults 37-40) have no chests yet. Until SneakyLeveling is live, add them as
+  # existing_only so players who already have those vaults keep them and nobody gets a new one, e.g.:
+  # skill-7:
+  #   location: world,x,y,z
+  #   vault: 37
+  #   existing_only: true
+  bag:
+    location: world,5025,61,5014
+    vault: 54
+
+messages:
+  too_poor: "&7You are too poor to upgrade this &6Vault&7!"
+  # Default for requires.message
+  requirement: "&7Upgrade the &6Existing &7Skill called &6Vault Master"
+  # existing_only chest without saved data
+  not_available: "&7This &6Vault &7isn't available yet."
+  # Vault number above the player's sneakyvaults.max.<n>, or no sneakyvaults.slots.<size>
+  missing: "&cCould not find your player vault!"
+  # Bank variables not loaded on this server yet
+  not_loaded: "&cYour bank is still loading. Try again in a moment."
+
+# Toasts (too poor, requirement). item_model: a namespaced item model id, or '' for the material's own look.
+toast_icon:
+  material: JIGSAW
+  item_model: ''
+
+sounds:
+  open: { sound: block.chest.open, volume: 0.4, pitch: 1.0 }
+  buy: { sound: lom:buy, volume: 0.4, pitch: 1.0 }
+  fail: { sound: lom:fail_wrong, volume: 0.4, pitch: 1.0 }
+
+# The "Buy Vault?" menu: one row (slots 0-8). Lore and names may use {price} and {currency}.
+# item_model: a namespaced item model id ('' for the material's own look). An item with no name and no lore
+# has its tooltip hidden. background is left out while its slot is -1.
+menu:
+  title: "&6Buy Vault?"
+  background:
+    slot: -1
+    material: PAPER
+    item_model: ''
+  confirm:
+    slot: 3
+    material: LIME_STAINED_GLASS_PANE
+    item_model: ''
+    name: "&aUnlock Vault?"
+    lore:
+      - "&eRequires &6{price} {currency}&e!"
+      - "&eMoney must be in bank!"
+  cancel:
+    slot: 5
+    material: RED_STAINED_GLASS_PANE
+    item_model: ''
+    name: "&cNo"

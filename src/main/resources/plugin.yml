@@ -9,5 +9,6 @@ softdepend:
   - SneakyCharacterManager
   - SneakyDiagnostics
   - SneakyItems
+  - SneakyVariables
 authors:
   - Bungo

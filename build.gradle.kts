@@ -33,7 +33,9 @@ repositories {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:$paperVersion")
     compileOnly("net.coreprotect:coreprotect:22.4")
-    compileOnly("io.github.team-sneakymouse:sneakyutils:2026.10.18-657d452bd6f4")
+    compileOnly("io.github.team-sneakymouse:sneakyutils:2026.11.21-79fd06ca75c3")
+    // Optional (softdepend): bank and vault-wall variables, only reached through wall/SneakyVariablesAccess
+    compileOnly("io.github.team-sneakymouse:sneakyvariables:2026.11.21-e5dc5f044df7")
     // optional at runtime: SneakyDiagnostics measures the plugin when installed (integration/Probe.java); never bundled
     compileOnly("io.github.team-sneakymouse:SneakyDiagnostics-API:2026.10.30-3b422b67e32e")
     // Optional (softdepend): only reached through integration/
@@ -45,7 +47,7 @@ dependencies {
     }
 
     testImplementation("io.papermc.paper:paper-api:$paperVersion")
-    testImplementation("io.github.team-sneakymouse:sneakyutils:2026.10.18-657d452bd6f4")
+    testImplementation("io.github.team-sneakymouse:sneakyutils:2026.11.21-79fd06ca75c3")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
 }

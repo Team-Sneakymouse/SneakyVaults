@@ -3,15 +3,13 @@ package net.sneakymouse.sneakyvaults.commands.player;
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandBase;
 import net.sneakymouse.sneakyvaults.integration.Probe;
-import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
-import net.sneakymouse.sneakyvaults.types.PlayerVault;
+import net.sneakymouse.sneakyvaults.managers.PlayerVaultOpener;
 import com.sneakyutils.util.TextUtility;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
-import java.util.logging.Level;
 
 public class CommandOpenVault extends CommandBase {
     public CommandOpenVault() {
@@ -59,43 +57,7 @@ public class CommandOpenVault extends CommandBase {
             }
         }
 
-        String playerUUID = player.getUniqueId().toString();
-        int number = vaultNumber;
-        long request = SneakyVaults.getInstance().beginOpen(player);
-        SneakyVaults.getInstance().vaultManager.getPlayerVault(playerUUID, vaultNumber).whenComplete((vault, error) -> {
-            // Runs on the server thread, now or once the vault has been read. By then the player may have
-            // left, opened something newer, or lost the command permission.
-            if(!player.isConnected() || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) return;
-            if(error != null){
-                SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable vault " + number + " for " + playerUUID, PersistenceQueue.cause(error));
-                player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));
-                return;
-            }
-            // Permissions may have changed while the vault was read.
-            if(vault == null || number > SneakyVaults.getInstance().vaultManager.getMaxAllowedVaults(playerUUID)){
-                player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cCould not find your player vault!"));
-                return;
-            }
-            if(vault.isOpened){
-                player.sendMessage(TextUtility.INSTANCE.convertToComponent("&4That vault is currently opened.. Try again later."));
-                return;
-            }
-            vault.growTo(SneakyVaults.getInstance().vaultManager.getMaxVaultSize(playerUUID));
-            // Another plugin can cancel the open; then the vault must not stay marked as opened.
-            if(show(player, vault))
-                vault.isOpened = true;
-        });
+        PlayerVaultOpener.open(player, vaultNumber, false, this::testPermissionSilent, "&cCould not find your player vault!");
         return false;
-    }
-
-    /** @return False if another plugin cancelled the open. */
-    private static boolean show(Player player, PlayerVault vault) {
-        Probe probe = SneakyVaults.getInstance().probe;
-        long shown = probe.start();
-        try {
-            return player.openInventory(vault.getInventory()) != null;
-        } finally {
-            probe.end("vault.player.open-inventory", shown);
-        }
     }
 }

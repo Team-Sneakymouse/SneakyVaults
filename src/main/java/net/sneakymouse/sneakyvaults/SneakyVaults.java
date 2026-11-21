@@ -16,6 +16,8 @@ import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
 import net.sneakymouse.sneakyvaults.types.SharedVault;
 import net.sneakymouse.sneakyvaults.types.TemplateVault;
+import net.sneakymouse.sneakyvaults.wall.SneakyVariablesAccess;
+import net.sneakymouse.sneakyvaults.wall.VaultWall;
 import com.sneakyutils.util.TextUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
@@ -51,6 +53,8 @@ public class SneakyVaults extends JavaPlugin {
 
     public VaultManager vaultManager;
     public SharedVaultManager sharedVaultManager;
+    /** The bank's vault wall (vault-wall.yml). */
+    public VaultWall vaultWall;
     private boolean characters = false;
 
     /** Every vault file read and write runs here, off the server thread. Created in onEnable. */
@@ -135,6 +139,7 @@ public class SneakyVaults extends JavaPlugin {
         getServer().getCommandMap().register(IDENTIFIER, new CommandBusinessVault());
         getServer().getCommandMap().register(IDENTIFIER, new CommandBusiness());
         getServer().getCommandMap().register(IDENTIFIER, new CommandPeekCharacterVault());
+        getServer().getCommandMap().register(IDENTIFIER, new CommandVaultWall());
 
         //Loading Events
         getServer().getPluginManager().registerEvents(new InventoryListener(), this);
@@ -146,12 +151,19 @@ public class SneakyVaults extends JavaPlugin {
         if(characters)
             getServer().getPluginManager().registerEvents(new CharacterHook(), this);
 
+        // The vault wall keeps its ownership flags and bank balances in SneakyVariables; without it the wall stays off.
+        boolean variables = getServer().getPluginManager().isPluginEnabled("SneakyVariables");
+        vaultWall = new VaultWall(this, variables ? SneakyVariablesAccess.create(this) : null);
+        getServer().getPluginManager().registerEvents(vaultWall, this);
+        vaultWall.loadNow();
+
         probe.hook();
     }
 
     @Override
     public void onDisable() {
         probe.unhook();
+        if(vaultWall != null) vaultWall.close();
         try {
             // Snapshot open vaults first. Bukkit no longer calls a disabling plugin's listeners, so closing
             // views does not save them; it only ensures that, on a plugin reload, no player keeps a view whose
