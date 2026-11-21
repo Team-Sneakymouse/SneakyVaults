@@ -2,6 +2,7 @@ package net.sneakymouse.sneakyvaults.commands.admin;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandAdminBase;
+import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
 import com.sneakyutils.util.TextUtility;
 import org.bukkit.Bukkit;
@@ -10,7 +11,6 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -63,37 +63,41 @@ public class CommandPeekVault extends CommandAdminBase {
             targetUUID = offlinePlayer.getUniqueId();
         }
 
-        PlayerVault vault;
-        try {
-            vault = SneakyVaults.getInstance().vaultManager.getExistingPlayerVault(
-                    targetUUID.toString(),
-                    vaultNumber
-            );
-        } catch(IOException exception) {
-            SneakyVaults.LOGGER.log(
-                    Level.SEVERE,
-                    "Refusing to open corrupt vault " + vaultNumber + " for " + targetUUID,
-                    exception
-            );
-            player.sendMessage(TextUtility.INSTANCE.convertToComponent(
-                    "&cThat vault could not be read safely. Its file was left unchanged."
-            ));
-            return false;
-        }
+        UUID target = targetUUID;
+        int number = vaultNumber;
+        SneakyVaults.getInstance().vaultManager.getExistingPlayerVault(target.toString(), vaultNumber).whenComplete((vault, error) -> {
+            // Runs on the server thread, now or once the vault has been read.
+            if(!player.isOnline()) return;
+            if(error != null) {
+                SneakyVaults.LOGGER.log(
+                        Level.SEVERE,
+                        "Refusing to open corrupt vault " + number + " for " + target,
+                        PersistenceQueue.cause(error)
+                );
+                player.sendMessage(TextUtility.INSTANCE.convertToComponent(
+                        "&cThat vault could not be read safely. Its file was left unchanged."
+                ));
+                return;
+            }
+            open(player, vault);
+        });
+        return false;
+    }
 
+    private static void open(Player player, PlayerVault vault) {
         if(vault == null) {
             player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault does not exist."));
-            return false;
+            return;
         }
 
         if(vault.isOpened) {
             player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault is already open."));
-            return false;
+            return;
         }
 
         vault.isOpened = true;
         try {
-            if(player.openInventory(vault.getInventory(false)) == null) {
+            if(player.openInventory(vault.getInventory()) == null) {
                 vault.isOpened = false;
                 player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cAnother plugin prevented that vault from opening."));
             }
@@ -101,6 +105,5 @@ public class CommandPeekVault extends CommandAdminBase {
             vault.isOpened = false;
             throw exception;
         }
-        return false;
     }
 }

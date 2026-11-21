@@ -1,6 +1,8 @@
 package net.sneakymouse.sneakyvaults.managers;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
+import net.sneakymouse.sneakyvaults.persistence.PendingLoads;
+import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
 import net.sneakymouse.sneakyvaults.types.TemplateVault;
 import com.sneakyutils.util.TextUtility;
@@ -12,11 +14,15 @@ import org.bukkit.inventory.Inventory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.logging.Level;
 
 import static net.sneakymouse.sneakyvaults.SneakyVaults.IDENTIFIER;
@@ -28,24 +34,25 @@ public class VaultManager {
 
     public Map<String, TemplateVault> templateVaults;
 
+    private final PendingLoads<String, Optional<PlayerVault.Stored>> loads;
+
     public VaultManager(){
         playerVaults = new HashMap<>();
         vaultSizeSession = new HashMap<>();
         templateVaults = new HashMap<>();
+        loads = new PendingLoads<>(SneakyVaults.getInstance().serverThread);
     }
 
     /**
-     * Save all currently active vaults
+     * Queue saving all currently loaded vaults; used on disable.
      * */
     public void saveAllVaults(){
         for(Map<Integer, PlayerVault> vaults : playerVaults.values()){
-            vaults.forEach((num, vault) ->{
-                try{
-                    vault.saveVault();
-                } catch (IOException e){
-                    SneakyVaults.LOGGER.severe("Bad: Failed to save a players vault!");
-                }
-            });
+            vaults.values().forEach(vault -> SneakyVaults.getInstance().reportSaveFailure(
+                    vault.save(),
+                    "vault " + vault.getVaultNumber() + " for " + vault.getOwner(),
+                    null
+            ));
         }
     }
 
@@ -115,23 +122,18 @@ public class VaultManager {
         return -1;
     }
 
+    private @Nullable PlayerVault getLoadedVault(@NotNull String playerUUID, int vaultNumber) {
+        Map<Integer, PlayerVault> loadedVaults = playerVaults.get(playerUUID);
+        return loadedVaults == null ? null : loadedVaults.get(vaultNumber);
+    }
+
     /**
      * Get an existing vault without consulting owner permissions or creating storage.
+     * @return Completes on the server thread with the vault, or null if it was never saved.
+     *         Completes exceptionally if it cannot be read.
      */
-    public @Nullable PlayerVault getExistingPlayerVault(@NotNull String playerUUID, int vaultNumber) throws IOException {
-        Map<Integer, PlayerVault> loadedVaults = playerVaults.get(playerUUID);
-        if(loadedVaults != null) {
-            PlayerVault loadedVault = loadedVaults.get(vaultNumber);
-            if(loadedVault != null)
-                return loadedVault;
-        }
-
-        PlayerVault vault = PlayerVault.loadExisting(playerUUID, vaultNumber);
-        if(vault == null)
-            return null;
-
-        playerVaults.computeIfAbsent(playerUUID, ignored -> new HashMap<>()).put(vaultNumber, vault);
-        return vault;
+    public CompletableFuture<PlayerVault> getExistingPlayerVault(@NotNull String playerUUID, int vaultNumber) {
+        return loadVault(playerUUID, vaultNumber, 0);
     }
 
     /**
@@ -139,51 +141,62 @@ public class VaultManager {
      * This will create a new vault if one does not exist already.
      * @param playerUUID UUID of the player to get the vault of
      * @param vaultNumber The vault number to get.
-     * @return PlayerVault object or null if the vault doesn't exist and the player cannot create a new vault
+     * @return Completes on the server thread with the vault, or null if the player may not have that vault.
+     *         Completes exceptionally if it cannot be read.
      * @see PlayerVault
      * */
-    public @Nullable PlayerVault getPlayerVault(@NotNull String playerUUID, int vaultNumber){
+    public CompletableFuture<PlayerVault> getPlayerVault(@NotNull String playerUUID, int vaultNumber){
         int maxVaults = getMaxAllowedVaults(playerUUID);
         if(maxVaults < 0 || vaultNumber < 1 || vaultNumber > maxVaults)
-            return null;
+            return CompletableFuture.completedFuture(null);
 
-        Map<Integer, PlayerVault> loadedVaults = playerVaults.get(playerUUID);
-        if(loadedVaults != null) {
-            PlayerVault loadedVault = loadedVaults.get(vaultNumber);
-            if(loadedVault != null)
-                return loadedVault;
-        }
+        PlayerVault loadedVault = getLoadedVault(playerUUID, vaultNumber);
+        if(loadedVault != null)
+            return CompletableFuture.completedFuture(loadedVault);
 
         int maxSize = getMaxVaultSize(playerUUID);
         if(maxSize < 9)
-            return null;
+            return CompletableFuture.completedFuture(null);
 
-        return createVault(playerUUID, maxSize, vaultNumber);
+        return loadVault(playerUUID, vaultNumber, maxSize);
     }
 
     /**
-     * Create a new playervault for the UUID supplied of stated size.
-     * @param playerUUID UUID of the player to create a vault for
-     * @param size Size of the vault to create. Note: MUST be a Multiple of 9.
-     * @return PlayerVault object or null if vault creation fails.
-     * @see PlayerVault
-     * */
-    private @Nullable PlayerVault createVault(@NotNull String playerUUID, int size, int vaultNumber){
-        Map<Integer, PlayerVault> vaults;
-        if(!playerVaults.containsKey(playerUUID))
-            vaults = new HashMap<>();
-        else
-            vaults = playerVaults.get(playerUUID);
+     * The loaded vault, or a load of it from the player's file. Once loaded a vault stays cached and is
+     * never read again, so its inventory is the authoritative copy.
+     * @param createSize Size for a vault that was never saved, or 0 to complete with null for it.
+     */
+    private CompletableFuture<PlayerVault> loadVault(@NotNull String playerUUID, int vaultNumber, int createSize) {
+        PlayerVault loadedVault = getLoadedVault(playerUUID, vaultNumber);
+        if(loadedVault != null)
+            return CompletableFuture.completedFuture(loadedVault);
 
-        try{
-            PlayerVault vault = new PlayerVault(playerUUID, size, vaultNumber, false);
-            vaults.put(vaultNumber, vault);
-            playerVaults.put(playerUUID, vaults);
+        File file = PlayerVault.fileFor(playerUUID);
+        PersistenceQueue persistence = SneakyVaults.getInstance().persistence;
+        return loads.load(playerUUID + ":" + vaultNumber, () -> persistence.submit(() -> Optional.ofNullable(PlayerVault.read(file, vaultNumber))))
+                .thenApply(stored -> adopt(playerUUID, vaultNumber, stored.orElse(null), createSize));
+    }
+
+    /**
+     * Server thread: the loaded vault if another request built it first, otherwise a new one from the
+     * data read from disk, which is cached.
+     */
+    private @Nullable PlayerVault adopt(String playerUUID, int vaultNumber, @Nullable PlayerVault.Stored stored, int createSize) {
+        PlayerVault loadedVault = getLoadedVault(playerUUID, vaultNumber);
+        if(loadedVault != null)
+            return loadedVault;
+
+        long building = SneakyVaults.getInstance().probe.start();
+        try {
+            PlayerVault vault = PlayerVault.create(playerUUID, vaultNumber, stored, createSize);
+            if(vault != null)
+                playerVaults.computeIfAbsent(playerUUID, ignored -> new HashMap<>()).put(vaultNumber, vault);
             return vault;
-        } catch(IOException e){
-            SneakyVaults.LOGGER.severe("Could not create player vault!");
+        } catch(IOException exception) {
+            throw new CompletionException(exception);
+        } finally {
+            SneakyVaults.getInstance().probe.end("vault.player.load", building);
         }
-        return null;
     }
 
     /**
@@ -237,9 +250,9 @@ public class VaultManager {
      * @param playerUUID The player UUID to open the inventory for
      * @param vaultName The name of the template vault to open
      * @param toForce True if you want it to create a new vault inventory each time. False will open the last vault the player opened
-     * @return True if the vault was opened, False otherwise
+     * @return Completes on the server thread with true if the vault was opened, false otherwise
      * */
-    public boolean openTemplateVault(String playerUUID, String vaultName, boolean toForce){
+    public CompletableFuture<Boolean> openTemplateVault(String playerUUID, String vaultName, boolean toForce){
         long opened = SneakyVaults.getInstance().probe.start();
         try {
             return openTemplate(playerUUID, vaultName, toForce);
@@ -248,32 +261,49 @@ public class VaultManager {
         }
     }
 
-    private boolean openTemplate(String playerUUID, String vaultName, boolean toForce){
+    private CompletableFuture<Boolean> openTemplate(String playerUUID, String vaultName, boolean toForce){
         TemplateVault vault = getOrCreateTemplateVault(vaultName);
-        if(vault == null) return false;
-        if(vault.isEditMode()) return false;
+        if(vault == null || vault.isEditMode()) return CompletableFuture.completedFuture(false);
 
         Player player = Bukkit.getPlayer(UUID.fromString(playerUUID));
-        if(player == null) return false;
+        if(player == null) return CompletableFuture.completedFuture(false);
 
-        Inventory inventory;
-        long loading = SneakyVaults.getInstance().probe.start();
-        try {
-            inventory = vault.getInventory(playerUUID, toForce);
-        } catch(IOException e){
-            SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, e);
-            return false;
-        } finally {
-            SneakyVaults.getInstance().probe.end("vault.template.load", loading);
+        CompletableFuture<String> savedCopy;
+        if(toForce) {
+            savedCopy = CompletableFuture.completedFuture("");
+        } else {
+            File file = PlayerVault.fileFor(playerUUID);
+            savedCopy = SneakyVaults.getInstance().persistence.submit(() -> TemplateVault.readPlayerCopy(file, vaultName))
+                    .thenApplyAsync(copy -> copy, SneakyVaults.getInstance().serverThread);
         }
 
-        long shown = SneakyVaults.getInstance().probe.start();
-        try {
-            player.openInventory(inventory);
-        } finally {
-            SneakyVaults.getInstance().probe.end("vault.template.open-inventory", shown);
-        }
-        return true;
+        return savedCopy.handle((copy, error) -> {
+            if(error != null) {
+                SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, PersistenceQueue.cause(error));
+                return false;
+            }
+            // The player may have left, or an edit session started, while the copy was read.
+            if(!player.isOnline() || vault.isEditMode()) return false;
+
+            Inventory inventory;
+            long loading = SneakyVaults.getInstance().probe.start();
+            try {
+                inventory = vault.buildPlayerInventory(copy);
+            } catch(IOException e){
+                SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, e);
+                return false;
+            } finally {
+                SneakyVaults.getInstance().probe.end("vault.template.load", loading);
+            }
+
+            long shown = SneakyVaults.getInstance().probe.start();
+            try {
+                player.openInventory(inventory);
+            } finally {
+                SneakyVaults.getInstance().probe.end("vault.template.open-inventory", shown);
+            }
+            return true;
+        });
     }
 
     /**

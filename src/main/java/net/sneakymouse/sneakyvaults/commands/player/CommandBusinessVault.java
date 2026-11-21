@@ -4,6 +4,8 @@ import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandBase;
 import net.sneakymouse.sneakyvaults.integration.Probe;
 import net.sneakymouse.sneakyvaults.integration.CharacterHook;
+import net.sneakymouse.sneakyvaults.managers.SharedVaultManager;
+import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
 import net.sneakymouse.sneakyvaults.types.Business;
 import net.sneakymouse.sneakyvaults.types.SharedVault;
 import com.sneakyutils.util.TextUtility;
@@ -11,8 +13,8 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 
 public class CommandBusinessVault extends CommandBase {
@@ -92,28 +94,40 @@ public class CommandBusinessVault extends CommandBase {
             return false;
         }
 
-        SharedVault vault;
+        SharedVaultManager manager = SneakyVaults.getInstance().sharedVaultManager;
+        int number = vaultNumber;
+        long loading = SneakyVaults.getInstance().probe.start();
+        CompletableFuture<SharedVault> load;
         try {
-            long loading = SneakyVaults.getInstance().probe.start();
-            try {
-                vault = SneakyVaults.getInstance().sharedVaultManager.getBusinessVault(business, vaultNumber, true);
-            } finally {
-                SneakyVaults.getInstance().probe.end("vault.business.load", loading);
-            }
-        } catch(IOException e) {
-            SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable business vault " + vaultNumber + " of " + business.getId(), e);
-            player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));
-            return false;
+            load = manager.getBusinessVault(business, vaultNumber, true);
+        } finally {
+            SneakyVaults.getInstance().probe.end("vault.business.load", loading);
         }
 
-        if(vault != null) {
+        load.whenComplete((vault, error) -> {
+            // Runs on the server thread, now or once the vault has been read.
+            if(error != null) {
+                SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable business vault " + number + " of " + business.getId(), PersistenceQueue.cause(error));
+                if(player.isOnline())
+                    player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));
+                return;
+            }
+            if(vault == null) return;
+            // While the vault was read the player may have left or switched character, or the
+            // business may have been deleted or the character removed from it.
+            CharacterHook.CharacterRef current = player.isOnline() ? CharacterHook.current(player) : null;
+            if(current == null || !current.uuid().equals(character.uuid()) || !manager.isCurrent(business) || !business.isMember(current.uuid())) {
+                manager.release(vault);
+                return;
+            }
+
             long shown = SneakyVaults.getInstance().probe.start();
             try {
                 player.openInventory(vault.getInventory());
             } finally {
                 SneakyVaults.getInstance().probe.end("vault.business.open-inventory", shown);
             }
-        }
+        });
         return false;
     }
 
