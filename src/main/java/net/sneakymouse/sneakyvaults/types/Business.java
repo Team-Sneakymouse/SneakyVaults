@@ -1,5 +1,7 @@
 package net.sneakymouse.sneakyvaults.types;
 
+import net.sneakymouse.sneakyvaults.SneakyVaults;
+import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -7,11 +9,13 @@ import java.io.File;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 /**
  * A business group. Its member characters share its vaults.
  * Stored in {@code Businesses/<id>.yml} next to the vault contents.
+ * The in-memory copy is authoritative; {@link #save} writes it in the background.
  */
 public class Business {
 
@@ -32,9 +36,10 @@ public class Business {
         this.file = file;
     }
 
+    /** Reads the file on the calling thread; only used while the plugin enables. */
     public static Business load(File file) throws IOException {
         String id = file.getName().substring(0, file.getName().length() - ".yml".length());
-        YamlConfiguration configuration = SharedVault.loadFile(file);
+        YamlConfiguration configuration = AtomicYamlFiles.load(file);
 
         Business business = new Business(id, configuration.getString("name", id), file);
         business.vaultCount = configuration.getInt("vault_count", 1);
@@ -52,18 +57,26 @@ public class Business {
         return business;
     }
 
-    /** Save the business settings and members. Vault contents in the same file are left alone. */
-    public void save() throws IOException {
-        SharedVault.updateFile(file, configuration -> {
-            configuration.set("name", name);
-            configuration.set("vault_count", vaultCount);
-            configuration.set("vault_size", vaultSize);
+    /**
+     * Server thread: snapshot the settings and members and queue writing them.
+     * Vault contents in the same file are left alone.
+     * @return Completes when written, or exceptionally if the write failed.
+     */
+    public CompletableFuture<Void> save() {
+        String savedName = name;
+        int savedCount = vaultCount;
+        int savedSize = vaultSize;
+        Map<String, Member> savedMembers = new LinkedHashMap<>(members);
+        return SneakyVaults.getInstance().persistence.run(() -> AtomicYamlFiles.update(file, configuration -> {
+            configuration.set("name", savedName);
+            configuration.set("vault_count", savedCount);
+            configuration.set("vault_size", savedSize);
             configuration.set("members", null);
-            members.forEach((characterUUID, member) -> {
+            savedMembers.forEach((characterUUID, member) -> {
                 configuration.set("members." + characterUUID + ".name", member.characterName());
                 configuration.set("members." + characterUUID + ".player", member.playerUUID());
             });
-        });
+        }));
     }
 
     public String getId() { return id; }

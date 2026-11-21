@@ -1,7 +1,10 @@
 package net.sneakymouse.sneakyvaults.persistence;
 
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -10,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -22,9 +26,8 @@ import static java.nio.file.StandardOpenOption.WRITE;
  * {@code YamlConfiguration.save(File)}), so a crash cannot leave a half-written inventory.
  *
  * <p>This class prevents readers from observing a partial file. It does not
- * order concurrent saves to the same path. If callers can save concurrently,
- * they must serialize both snapshot creation and the call to this class for
- * each destination. Otherwise, an older snapshot can replace a newer one.</p>
+ * order concurrent saves to the same path: vault files are only read and written
+ * on the {@link PersistenceQueue}, which runs them one at a time in order.</p>
  */
 public final class AtomicYamlFiles {
 
@@ -32,8 +35,33 @@ public final class AtomicYamlFiles {
     }
 
     public static void save(FileConfiguration configuration, Path target) throws IOException {
-        String yaml = configuration.saveToString();
+        saveString(configuration.saveToString(), target);
+    }
+
+    public static void saveString(String yaml, Path target) throws IOException {
         write(target, yaml.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Strict load: a missing file reads as empty, but a corrupt one throws instead of reading as empty,
+     * so it is never overwritten.
+     */
+    public static YamlConfiguration load(File file) throws IOException {
+        YamlConfiguration configuration = new YamlConfiguration();
+        if(!file.isFile()) return configuration;
+        try {
+            configuration.load(file);
+        } catch(InvalidConfigurationException exception) {
+            throw new IOException("Invalid YAML in " + file.getPath(), exception);
+        }
+        return configuration;
+    }
+
+    /** Read the file, apply a change and write it back atomically. */
+    public static void update(File file, Consumer<YamlConfiguration> change) throws IOException {
+        YamlConfiguration configuration = load(file);
+        change.accept(configuration);
+        save(configuration, file.toPath());
     }
 
     public static void saveResource(InputStream resource, Path target) throws IOException {

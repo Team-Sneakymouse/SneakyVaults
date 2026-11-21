@@ -42,13 +42,16 @@ public class CommandOpenTemplate extends CommandAdminBase {
             return false;
         }
 
-        if(SneakyVaults.getInstance().vaultManager.openTemplateVault(target.getUniqueId().toString(), vaultName, toForce)){
-            sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&eOpened vault for player!"));
-            target.sendMessage(TextUtility.INSTANCE.convertToComponent("&aOpened vault!"));
-        }
-        else {
-            sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&cFailed to open template vault!"));
-        }
+        // Completes on the server thread, now or once the player's saved copy has been read.
+        SneakyVaults.getInstance().vaultManager.openTemplateVault(target.getUniqueId().toString(), vaultName, toForce).thenAccept(opened -> {
+            if(opened){
+                sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&eOpened vault for player!"));
+                target.sendMessage(TextUtility.INSTANCE.convertToComponent("&aOpened vault!"));
+            }
+            else {
+                sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&cFailed to open template vault!"));
+            }
+        });
 
         return false;
     }

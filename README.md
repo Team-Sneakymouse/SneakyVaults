@@ -12,6 +12,7 @@ Paper plugin for item vaults. Needs SneakyUtils; SneakyCharacterManager is neede
 
 - Command permissions: `sneakyvaults.openvault`, `sneakyvaults.cvault`, `sneakyvaults.bvault`.
 - Character and business vaults are one live inventory per vault, so several viewers see the same contents at once. They save every time someone closes them.
+- A vault that is not loaded yet is read in the background and opens a tick or so after the command.
 - Switching character closes any open character or business vault.
 - Vaults never shrink: lowering a permission or a business's size keeps the saved size, and items in vault numbers above the limit are kept but can't be opened.
 
@@ -30,7 +31,7 @@ All need `sneakyvaults.admin.<command>`.
 
 Measured by [SneakyDiagnostics](https://github.com/Team-Sneakymouse/SneakyDiagnostics) when it is installed (optional): `/diagnostics plugins start 60 SneakyVaults`.
 Setup and rules: [plugin-providers.md](https://github.com/Team-Sneakymouse/SneakyDiagnostics/blob/main/docs/plugin-providers.md).
-Sections, per vault kind (`player` for `/openvault`, `character`, `business`, `template` for `openTemplateVault`): `vault.<kind>.open` (the whole command or call), with `vault.<kind>.load` (finding or reading the vault and building its inventory) and `vault.<kind>.open-inventory` (`Player.openInventory`, which includes every plugin's inventory listeners, such as SneakyItems' inventory update). Admin peek, search and edit commands are not measured. No counts or levels.
+Sections, per vault kind (`player` for `/openvault`, `character`, `business`, `template` for `openTemplateVault`): `vault.<kind>.open` (the server-thread part of the command or call), `vault.<kind>.load` (server-thread work to find the vault or build its inventory from data read in the background; file reads and writes run on the `SneakyVaults-IO` thread and are not measured) and `vault.<kind>.open-inventory` (`Player.openInventory`, which includes every plugin's inventory listeners, such as SneakyItems' inventory update). `vault.player.load` also covers global vaults built for admin peeks. Other admin peek, search and edit work is not measured. No counts or levels.
 
 ## Data
 
@@ -39,6 +40,6 @@ In `plugins/SneakyVaults/`:
 - `PlayerData/<player uuid>.yml`: global vaults (`player_vaults.<n>.items`) and players' template copies.
 - `CharacterData/<character uuid>.yml`: `player`, `name`, `vaults.<n>.items`.
 - `Businesses/<id>.yml`: `name`, `vault_count`, `vault_size`, `members.<character uuid>.{name,player}`, `vaults.<n>.items`.
-- `config.yml`: `template_vaults`, `banned_ms_items`.
+- `config.yml`: `template_vaults`, `banned_ms_items`. If it is not valid YAML at startup, the plugin logs an error and saves no template changes until it is fixed, rather than replacing it.
 
-Every file is written to a temporary file and then moved into place, so a crash never leaves a half-written file.
+Every file is written to a temporary file and then moved into place, so a crash never leaves a half-written file. Once a vault or template copy is loaded, its in-memory contents are the authoritative copy: it is only dropped from memory after its last close was written and nobody is viewing it, so a failed write is never replaced by the older file and is retried on shutdown. While the server runs, vault reads and writes happen one at a time, in order, on the `SneakyVaults-IO` thread rather than the server thread. Exceptions: loading businesses and `config.yml` and writing the default config happen while the plugin enables, and `/searchvault` lists and reads `PlayerData` on its own background task (read-only). On shutdown the plugin waits up to 60 seconds for queued saves to finish. A save still queued when the server process is killed (not stopped) is lost, so the vault file can briefly lag behind the player's own saved inventory; on a healthy disk that window is milliseconds.

@@ -17,9 +17,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.logging.Level;
 
 public class InventoryListener implements Listener {
 
@@ -47,38 +45,33 @@ public class InventoryListener implements Listener {
     @EventHandler
     public void onClose(InventoryCloseEvent event){
         Inventory inventory = event.getInventory();
+        // Saves are queued off the server thread; failures are logged and reported to the player later.
+        SneakyVaults plugin = SneakyVaults.getInstance();
         if(inventory.getHolder() instanceof PlayerVault playerVault){
             try {
-                playerVault.saveVault();
-            } catch(IOException exception) {
-                SneakyVaults.LOGGER.log(
-                        Level.SEVERE,
-                        "Failed to save vault " + playerVault.getVaultNumber() + " for " + playerVault.getOwner(),
-                        exception
+                plugin.reportSaveFailure(
+                        plugin.vaultManager.onClose(playerVault),
+                        "vault " + playerVault.getVaultNumber() + " for " + playerVault.getOwner(),
+                        event.getPlayer()
                 );
-                event.getPlayer().sendMessage(TextUtility.INSTANCE.convertToComponent(
-                        "&cThe vault could not be saved. A server maintainer has been notified."
-                ));
             } finally {
                 playerVault.isOpened = false;
             }
         }
         else if(inventory.getHolder() instanceof SharedVault sharedVault){
-            try {
-                SneakyVaults.getInstance().sharedVaultManager.onClose(sharedVault);
-            } catch(IOException exception) {
-                SneakyVaults.LOGGER.log(Level.SEVERE, "Failed to save " + sharedVault, exception);
-                event.getPlayer().sendMessage(TextUtility.INSTANCE.convertToComponent(
-                        "&cThe vault could not be saved. A server maintainer has been notified."
-                ));
-            }
+            plugin.reportSaveFailure(plugin.sharedVaultManager.onClose(sharedVault), sharedVault.toString(), event.getPlayer());
         }
         else if(inventory.getHolder() instanceof TemplateVault templateVault){
             if(templateVault.isEditMode()){
                 templateVault.endEditMode(event.getInventory());
                 event.getPlayer().sendMessage(TextUtility.INSTANCE.convertToComponent("&aEdit session ended! Inventory saved to config!"));
             }else{
-                templateVault.onClosed((Player) event.getPlayer(), event.getInventory());
+                Player player = (Player) event.getPlayer();
+                plugin.reportSaveFailure(
+                        plugin.vaultManager.onTemplateCopyClosed(templateVault, player, event.getInventory()),
+                        "template vault " + templateVault.getName() + " for " + player.getUniqueId(),
+                        player
+                );
             }
         }
     }

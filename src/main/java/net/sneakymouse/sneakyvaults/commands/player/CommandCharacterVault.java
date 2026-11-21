@@ -4,14 +4,17 @@ import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.commands.CommandBase;
 import net.sneakymouse.sneakyvaults.integration.Probe;
 import net.sneakymouse.sneakyvaults.integration.CharacterHook;
+import net.sneakymouse.sneakyvaults.managers.SharedVaultManager;
+import net.sneakymouse.sneakyvaults.managers.VaultManager;
+import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
 import net.sneakymouse.sneakyvaults.types.SharedVault;
 import com.sneakyutils.util.TextUtility;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 
 public class CommandCharacterVault extends CommandBase {
@@ -64,31 +67,48 @@ public class CommandCharacterVault extends CommandBase {
             return false;
         }
 
-        SharedVault vault;
+        SharedVaultManager manager = SneakyVaults.getInstance().sharedVaultManager;
+        int number = vaultNumber;
+        long request = SneakyVaults.getInstance().beginOpen(player);
+        long loading = SneakyVaults.getInstance().probe.start();
+        CompletableFuture<SharedVault> load;
         try {
-            long loading = SneakyVaults.getInstance().probe.start();
-            try {
-                vault = SneakyVaults.getInstance().sharedVaultManager.getCharacterVault(player, character.uuid(), character.name(), vaultNumber);
-            } finally {
-                SneakyVaults.getInstance().probe.end("vault.character.load", loading);
-            }
-        } catch(IOException e) {
-            SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable character vault " + vaultNumber + " for " + character.uuid(), e);
-            player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));
-            return false;
-        }
-
-        if(vault == null) {
-            player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cYou don't have access to character vault " + vaultNumber + "!"));
-            return false;
-        }
-
-        long shown = SneakyVaults.getInstance().probe.start();
-        try {
-            player.openInventory(vault.getInventory());
+            load = manager.getCharacterVault(player, character.uuid(), character.name(), vaultNumber);
         } finally {
-            SneakyVaults.getInstance().probe.end("vault.character.open-inventory", shown);
+            SneakyVaults.getInstance().probe.end("vault.character.load", loading);
         }
+
+        load.whenComplete((vault, error) -> {
+            // Runs on the server thread, now or once the vault has been read.
+            if(error != null) {
+                SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable character vault " + number + " for " + character.uuid(), PersistenceQueue.cause(error));
+                if(player.isConnected())
+                    player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));
+                return;
+            }
+            if(vault == null) {
+                player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cYou don't have access to character vault " + number + "!"));
+                return;
+            }
+            // While the vault was read the player may have left, switched character, opened something
+            // newer, or lost the command, vault-count or slots permission.
+            CharacterHook.CharacterRef current = player.isConnected() ? CharacterHook.current(player) : null;
+            if(current == null || !current.uuid().equals(character.uuid())
+                    || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)
+                    || number > VaultManager.maxVaultsFromPermissions(player, SharedVaultManager.CHARACTER_MAX_PREFIX)
+                    || VaultManager.maxSlotsFromPermissions(player, SharedVaultManager.CHARACTER_SLOTS_PREFIX) < 9) {
+                manager.release(vault);
+                return;
+            }
+
+            long shown = SneakyVaults.getInstance().probe.start();
+            try {
+                if(player.openInventory(vault.getInventory()) == null)
+                    manager.release(vault);
+            } finally {
+                SneakyVaults.getInstance().probe.end("vault.character.open-inventory", shown);
+            }
+        });
         return false;
     }
 }

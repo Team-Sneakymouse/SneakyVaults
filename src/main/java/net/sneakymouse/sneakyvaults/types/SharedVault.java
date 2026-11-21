@@ -1,12 +1,11 @@
 package net.sneakymouse.sneakyvaults.types;
 
-import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
+import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
 import com.sneakyutils.util.InventoryUtility;
 import com.sneakyutils.util.TextUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.inventory.Inventory;
@@ -19,13 +18,14 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Consumer;
-import java.util.logging.Level;
 
 /**
  * A character or business vault. There is one inventory per vault, so everyone who opens it
  * sees the same live contents and items cannot be duplicated between viewers.
  * Contents live in the owner's file under {@code vaults.<number>.items}.
+ *
+ * <p>Disk access is split from Bukkit access: {@link #read} and {@link #write} run on the persistence
+ * queue with plain data, and {@link #create} and {@link #snapshotWrite} run on the server thread.
  */
 public class SharedVault implements InventoryHolder {
 
@@ -58,24 +58,38 @@ public class SharedVault implements InventoryHolder {
     }
 
     /**
-     * Load a vault from its owner's file.
+     * Persistence thread: read a vault's encoded items from its owner's file.
+     * @return The encoded items, or null if the vault has never been saved.
+     * @throws IOException if the file is not valid YAML.
+     */
+    public static @Nullable List<String> read(File file, int vaultNumber) throws IOException {
+        YamlConfiguration configuration = AtomicYamlFiles.load(file);
+        String path = "vaults." + vaultNumber + ".items";
+        return configuration.contains(path) ? configuration.getStringList(path) : null;
+    }
+
+    /** Persistence thread: write a vault's encoded items, keeping everything else in the file. */
+    public static void write(File file, int vaultNumber, List<String> encodedItems) throws IOException {
+        AtomicYamlFiles.update(file, configuration -> configuration.set("vaults." + vaultNumber + ".items", encodedItems));
+    }
+
+    /**
+     * Server thread: build a vault from the items {@link #read} returned.
      * @param size Size to create the vault with when it has no saved data, or 0 to only load existing vaults.
      *             Saved vaults keep their saved size if it is larger.
      * @return The vault, or null if it has no saved data and size is 0.
-     * @throws IOException if the file or its item data cannot be read; nothing is created then.
+     * @throws IOException if the item data cannot be decoded; nothing is created then.
      */
-    public static @Nullable SharedVault load(Kind kind, String ownerId, int vaultNumber, File file, String name, int size) throws IOException {
+    public static @Nullable SharedVault create(Kind kind, String ownerId, int vaultNumber, File file, @Nullable String name,
+                                               @Nullable List<String> encoded, int size) throws IOException {
         String title = "&e" + kind.title + " " + vaultNumber + (name == null || name.isBlank() ? "" : " &7- " + name);
-        YamlConfiguration configuration = loadFile(file);
-        String path = "vaults." + vaultNumber + ".items";
 
-        if(!configuration.contains(path)) {
+        if(encoded == null) {
             if(size == 0) return null;
             validateSize(size, vaultNumber);
             return new SharedVault(kind, ownerId, vaultNumber, file, title, new ItemStack[size]);
         }
 
-        List<String> encoded = configuration.getStringList(path);
         validateSize(encoded.size(), vaultNumber);
         ItemStack[] items;
         try {
@@ -99,9 +113,18 @@ public class SharedVault implements InventoryHolder {
             inventory.setItem(i, items[i]);
     }
 
-    public void save() throws IOException {
+    /**
+     * Server thread: snapshot the contents now and return the write of that snapshot, for the persistence queue.
+     */
+    public PersistenceQueue.VoidTask snapshotWrite() {
         List<String> encoded = InventoryUtility.inventoryPaperToBase64(inventory);
-        updateFile(file, configuration -> configuration.set("vaults." + vaultNumber + ".items", encoded));
+        File target = file;
+        int number = vaultNumber;
+        return () -> write(target, number, encoded);
+    }
+
+    public boolean isViewed() {
+        return !inventory.getViewers().isEmpty();
     }
 
     /** Close the vault for everyone looking at it. Closing saves it. */
@@ -127,40 +150,17 @@ public class SharedVault implements InventoryHolder {
             throw new IOException("Vault " + vaultNumber + " has invalid inventory size " + size);
     }
 
-    /** Strict load: a corrupt file throws instead of reading as empty, so it is never overwritten. */
-    public static YamlConfiguration loadFile(File file) throws IOException {
-        YamlConfiguration configuration = new YamlConfiguration();
-        if(!file.isFile()) return configuration;
-        try {
-            configuration.load(file);
-        } catch(InvalidConfigurationException exception) {
-            throw new IOException("Invalid YAML in " + file.getPath(), exception);
-        }
-        return configuration;
-    }
-
-    /** Read the file, apply a change and write it back atomically. */
-    public static void updateFile(File file, Consumer<YamlConfiguration> change) throws IOException {
-        YamlConfiguration configuration = loadFile(file);
-        change.accept(configuration);
-        AtomicYamlFiles.save(configuration, file.toPath());
-    }
-
     @Override
     public String toString() {
         return key(kind, ownerId, vaultNumber);
     }
 
     public static String key(Kind kind, String ownerId, int vaultNumber) {
-        return kind + ":" + ownerId + ":" + vaultNumber;
+        return keyPrefix(kind, ownerId) + vaultNumber;
     }
 
-    /** Logs and reports a save failure; shared by the close listener and shutdown. */
-    public void saveOrLog() {
-        try {
-            save();
-        } catch(IOException exception) {
-            SneakyVaults.LOGGER.log(Level.SEVERE, "Failed to save " + this, exception);
-        }
+    /** The start of every vault key of one owner. */
+    public static String keyPrefix(Kind kind, String ownerId) {
+        return kind + ":" + ownerId + ":";
     }
 }

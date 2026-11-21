@@ -1,8 +1,11 @@
 package net.sneakymouse.sneakyvaults.managers;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
+import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
+import net.sneakymouse.sneakyvaults.persistence.VaultStore;
 import net.sneakymouse.sneakyvaults.types.PlayerVault;
 import net.sneakymouse.sneakyvaults.types.TemplateVault;
+import com.sneakyutils.util.InventoryUtility;
 import com.sneakyutils.util.TextUtility;
 import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
@@ -10,55 +13,66 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 import static net.sneakymouse.sneakyvaults.SneakyVaults.IDENTIFIER;
 
+/**
+ * Global vaults and players' template copies. Both are held in a {@link VaultStore}: once loaded, the
+ * in-memory inventory is the authoritative copy. Global vaults stay loaded for the session; a template
+ * copy is dropped once its last close was written and the player isn't looking at it.
+ *
+ * <p>Server thread only. Files are read and written on the persistence queue. Futures of loads and opens
+ * complete on the server thread; futures of saves (such as {@code onClose}) complete on the persistence
+ * thread when the write finishes.
+ */
 public class VaultManager {
 
-    public Map<String, Map<Integer, PlayerVault>> playerVaults;
     public Map<String, String> vaultSizeSession;
 
     public Map<String, TemplateVault> templateVaults;
 
+    /** Keyed by {@code <player uuid>:<vault number>}. */
+    private final VaultStore<PlayerVault.Stored, PlayerVault> playerVaults;
+    /** A player's copy of a template, keyed by player and template name (see {@link #copyKey}). */
+    private final VaultStore<String, Inventory> templateCopies;
+
     public VaultManager(){
-        playerVaults = new HashMap<>();
-        vaultSizeSession = new HashMap<>();
+        // Read by the async chat listener's quick check, so it must be thread-safe.
+        vaultSizeSession = new ConcurrentHashMap<>();
         templateVaults = new HashMap<>();
+        SneakyVaults plugin = SneakyVaults.getInstance();
+        playerVaults = new VaultStore<>(plugin.persistence, plugin.serverThread,
+                vault -> vault.isOpened || !vault.getInventory().getViewers().isEmpty(), false);
+        templateCopies = new VaultStore<>(plugin.persistence, plugin.serverThread,
+                inventory -> !inventory.getViewers().isEmpty(), true);
     }
 
     /**
-     * Save all currently active vaults
+     * Queue writing every vault and template copy whose contents may not be on disk (open, or its last
+     * write failed); used on disable.
      * */
     public void saveAllVaults(){
-        for(Map<Integer, PlayerVault> vaults : playerVaults.values()){
-            vaults.forEach((num, vault) ->{
-                try{
-                    vault.saveVault();
-                } catch (IOException e){
-                    SneakyVaults.LOGGER.severe("Bad: Failed to save a players vault!");
-                }
-            });
-        }
+        playerVaults.forEachNeedingSave((key, vault) -> SneakyVaults.getInstance().reportSaveFailure(
+                playerVaults.save(key, vault.snapshotWrite()),
+                "vault " + vault.getVaultNumber() + " for " + vault.getOwner(),
+                null
+        ));
+        templateCopies.forEachNeedingSave((key, inventory) -> SneakyVaults.getInstance().reportSaveFailure(
+                templateCopies.save(key, copyWrite(key, inventory)),
+                "template copy " + key.replace('\0', ' '),
+                null
+        ));
     }
-
-    /**
-     * Gets the number of vaults a player currently has.
-     * @param playerUUID UUID of the player to check vaults of
-     * @return The size of the player vault count
-     * */
-    /*
-    public int getLastVault(String playerUUID){
-        Map<Integer, PlayerVault> vaults = playerVaults.getOrDefault(playerUUID, new HashMap<>());
-        return vaults.size();
-    }*/
 
     /**
      * Get the max number of allowed vaults a player has permission to own.
@@ -115,23 +129,17 @@ public class VaultManager {
         return -1;
     }
 
+    private static String vaultKey(String playerUUID, int vaultNumber) {
+        return playerUUID + ":" + vaultNumber;
+    }
+
     /**
      * Get an existing vault without consulting owner permissions or creating storage.
+     * @return Completes on the server thread with the vault, or null if it was never saved.
+     *         Completes exceptionally if it cannot be read.
      */
-    public @Nullable PlayerVault getExistingPlayerVault(@NotNull String playerUUID, int vaultNumber) throws IOException {
-        Map<Integer, PlayerVault> loadedVaults = playerVaults.get(playerUUID);
-        if(loadedVaults != null) {
-            PlayerVault loadedVault = loadedVaults.get(vaultNumber);
-            if(loadedVault != null)
-                return loadedVault;
-        }
-
-        PlayerVault vault = PlayerVault.loadExisting(playerUUID, vaultNumber);
-        if(vault == null)
-            return null;
-
-        playerVaults.computeIfAbsent(playerUUID, ignored -> new HashMap<>()).put(vaultNumber, vault);
-        return vault;
+    public CompletableFuture<PlayerVault> getExistingPlayerVault(@NotNull String playerUUID, int vaultNumber) {
+        return loadVault(playerUUID, vaultNumber, 0);
     }
 
     /**
@@ -139,51 +147,48 @@ public class VaultManager {
      * This will create a new vault if one does not exist already.
      * @param playerUUID UUID of the player to get the vault of
      * @param vaultNumber The vault number to get.
-     * @return PlayerVault object or null if the vault doesn't exist and the player cannot create a new vault
+     * @return Completes on the server thread with the vault, or null if the player may not have that vault.
+     *         Completes exceptionally if it cannot be read.
      * @see PlayerVault
      * */
-    public @Nullable PlayerVault getPlayerVault(@NotNull String playerUUID, int vaultNumber){
+    public CompletableFuture<PlayerVault> getPlayerVault(@NotNull String playerUUID, int vaultNumber){
         int maxVaults = getMaxAllowedVaults(playerUUID);
         if(maxVaults < 0 || vaultNumber < 1 || vaultNumber > maxVaults)
-            return null;
+            return CompletableFuture.completedFuture(null);
 
-        Map<Integer, PlayerVault> loadedVaults = playerVaults.get(playerUUID);
-        if(loadedVaults != null) {
-            PlayerVault loadedVault = loadedVaults.get(vaultNumber);
-            if(loadedVault != null)
-                return loadedVault;
-        }
+        PlayerVault loadedVault = playerVaults.get(vaultKey(playerUUID, vaultNumber));
+        if(loadedVault != null)
+            return CompletableFuture.completedFuture(loadedVault);
 
         int maxSize = getMaxVaultSize(playerUUID);
         if(maxSize < 9)
-            return null;
+            return CompletableFuture.completedFuture(null);
 
-        return createVault(playerUUID, maxSize, vaultNumber);
+        return loadVault(playerUUID, vaultNumber, maxSize);
     }
 
     /**
-     * Create a new playervault for the UUID supplied of stated size.
-     * @param playerUUID UUID of the player to create a vault for
-     * @param size Size of the vault to create. Note: MUST be a Multiple of 9.
-     * @return PlayerVault object or null if vault creation fails.
-     * @see PlayerVault
-     * */
-    private @Nullable PlayerVault createVault(@NotNull String playerUUID, int size, int vaultNumber){
-        Map<Integer, PlayerVault> vaults;
-        if(!playerVaults.containsKey(playerUUID))
-            vaults = new HashMap<>();
-        else
-            vaults = playerVaults.get(playerUUID);
+     * The loaded vault, or a load of it from the player's file.
+     * @param createSize Size for a vault that was never saved, or 0 to complete with null for it.
+     */
+    private CompletableFuture<PlayerVault> loadVault(@NotNull String playerUUID, int vaultNumber, int createSize) {
+        File file = PlayerVault.fileFor(playerUUID);
+        return playerVaults.load(vaultKey(playerUUID, vaultNumber), () -> PlayerVault.read(file, vaultNumber), stored -> {
+            long building = SneakyVaults.getInstance().probe.start();
+            try {
+                return PlayerVault.create(playerUUID, vaultNumber, stored, createSize);
+            } finally {
+                SneakyVaults.getInstance().probe.end("vault.player.load", building);
+            }
+        });
+    }
 
-        try{
-            PlayerVault vault = new PlayerVault(playerUUID, size, vaultNumber, false);
-            vaults.put(vaultNumber, vault);
-            playerVaults.put(playerUUID, vaults);
-            return vault;
-        } catch(IOException e){
-            SneakyVaults.LOGGER.severe("Could not create player vault!");
-        }
-        return null;
+    /**
+     * Called when a global vault is closed: queue writing its contents.
+     * @return Completes when written, or exceptionally if the write failed.
+     */
+    public CompletableFuture<Void> onClose(PlayerVault vault) {
+        return playerVaults.save(vaultKey(vault.getOwner(), vault.getVaultNumber()), vault.snapshotWrite());
     }
 
     /**
@@ -237,9 +242,9 @@ public class VaultManager {
      * @param playerUUID The player UUID to open the inventory for
      * @param vaultName The name of the template vault to open
      * @param toForce True if you want it to create a new vault inventory each time. False will open the last vault the player opened
-     * @return True if the vault was opened, False otherwise
+     * @return Completes on the server thread with true if the vault was opened, false otherwise
      * */
-    public boolean openTemplateVault(String playerUUID, String vaultName, boolean toForce){
+    public CompletableFuture<Boolean> openTemplateVault(String playerUUID, String vaultName, boolean toForce){
         long opened = SneakyVaults.getInstance().probe.start();
         try {
             return openTemplate(playerUUID, vaultName, toForce);
@@ -248,32 +253,101 @@ public class VaultManager {
         }
     }
 
-    private boolean openTemplate(String playerUUID, String vaultName, boolean toForce){
+    private CompletableFuture<Boolean> openTemplate(String playerUUID, String vaultName, boolean toForce){
         TemplateVault vault = getOrCreateTemplateVault(vaultName);
-        if(vault == null) return false;
-        if(vault.isEditMode()) return false;
+        if(vault == null || vault.isEditMode()) return CompletableFuture.completedFuture(false);
 
         Player player = Bukkit.getPlayer(UUID.fromString(playerUUID));
-        if(player == null) return false;
+        if(player == null) return CompletableFuture.completedFuture(false);
+        long request = SneakyVaults.getInstance().beginOpen(player);
+        String key = copyKey(playerUUID, vaultName);
 
-        Inventory inventory;
-        long loading = SneakyVaults.getInstance().probe.start();
-        try {
-            inventory = vault.getInventory(playerUUID, toForce);
-        } catch(IOException e){
-            SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, e);
-            return false;
-        } finally {
-            SneakyVaults.getInstance().probe.end("vault.template.load", loading);
+        if(toForce) {
+            // A fresh copy replaces the player's copy. One still open is closed first, which saves it.
+            if(isViewingTemplate(player, vaultName))
+                player.closeInventory();
+            Inventory fresh;
+            try {
+                fresh = vault.buildPlayerInventory("");
+            } catch(IOException e) {
+                SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, e);
+                return CompletableFuture.completedFuture(false);
+            }
+            // Keep the fresh copy only once it is open: if another plugin cancels the open, an unused fresh
+            // copy would otherwise replace the player's real one and be saved over it on a later open.
+            if(!showTemplate(player, fresh))
+                return CompletableFuture.completedFuture(false);
+            templateCopies.put(key, fresh);
+            return CompletableFuture.completedFuture(true);
         }
 
+        // The player's copy: the loaded one if any, otherwise read from their file (or a fresh copy if they
+        // have none). A copy still open is the same inventory, so reopening it is safe.
+        File file = PlayerVault.fileFor(playerUUID);
+        return templateCopies.load(key, () -> TemplateVault.readPlayerCopy(file, vaultName), savedCopy -> {
+            // The template may have been deleted, replaced or put in edit mode while the copy was read.
+            if(vault.isEditMode() || templateVaults.get(vaultName) != vault) return null;
+            long loading = SneakyVaults.getInstance().probe.start();
+            try {
+                return vault.buildPlayerInventory(savedCopy == null ? "" : savedCopy);
+            } finally {
+                SneakyVaults.getInstance().probe.end("vault.template.load", loading);
+            }
+        }).handle((copy, error) -> {
+            if(error != null) {
+                SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, PersistenceQueue.cause(error));
+                return false;
+            }
+            if(copy == null) return false;
+            // While the copy was read the player may have left or opened something newer.
+            if(!player.isConnected() || !SneakyVaults.getInstance().isLatestOpen(player, request)
+                    || vault.isEditMode() || templateVaults.get(vaultName) != vault) {
+                templateCopies.release(key);
+                return false;
+            }
+            if(!showTemplate(player, copy)) {
+                templateCopies.release(key);
+                return false;
+            }
+            return true;
+        });
+    }
+
+    /** @return False if another plugin cancelled the open. */
+    private static boolean showTemplate(Player player, Inventory copy) {
         long shown = SneakyVaults.getInstance().probe.start();
         try {
-            player.openInventory(inventory);
+            return player.openInventory(copy) != null;
         } finally {
             SneakyVaults.getInstance().probe.end("vault.template.open-inventory", shown);
         }
-        return true;
+    }
+
+    /**
+     * Called when a player closes their copy of a template: queue writing it to their file.
+     * @return Completes when written, or exceptionally if the write failed.
+     */
+    public CompletableFuture<Void> onTemplateCopyClosed(TemplateVault vault, Player player, Inventory closedInventory){
+        String key = copyKey(player.getUniqueId().toString(), vault.getName());
+        return templateCopies.save(key, copyWrite(key, closedInventory));
+    }
+
+    /** Server thread: snapshot a copy now and return the write of that snapshot. */
+    private static PersistenceQueue.VoidTask copyWrite(String key, Inventory copy) {
+        String[] parts = key.split("\0", 2);
+        File file = PlayerVault.fileFor(parts[0]);
+        String vaultName = parts[1];
+        String inventory = InventoryUtility.inventoryToPaperYaml(copy.getContents());
+        return () -> TemplateVault.writePlayerCopy(file, vaultName, inventory);
+    }
+
+    private static String copyKey(String playerUUID, String vaultName) {
+        return playerUUID + "\0" + vaultName;
+    }
+
+    private static boolean isViewingTemplate(Player player, String vaultName) {
+        return player.getOpenInventory().getTopInventory().getHolder() instanceof TemplateVault open
+                && open.getName().equals(vaultName);
     }
 
     /**
@@ -340,6 +414,11 @@ public class VaultManager {
         ConfigurationSection section = config.getConfigurationSection("template_vaults");
         if(section == null)
             section = config.createSection("template_vaults");
+
+        // Close copies still open, so they are saved now and no stale holder outlives the template.
+        for(Player player : Bukkit.getOnlinePlayers())
+            if(isViewingTemplate(player, vaultName))
+                player.closeInventory();
 
         section.set(vaultName, null);
         templateVaults.remove(vaultName);
