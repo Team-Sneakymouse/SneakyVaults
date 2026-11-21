@@ -1,7 +1,7 @@
 package net.sneakymouse.sneakyvaults.types;
 
-import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
+import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
 import com.sneakyutils.util.InventoryUtility;
 import com.sneakyutils.util.TextUtility;
 import org.bukkit.Bukkit;
@@ -18,7 +18,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * A character or business vault. There is one inventory per vault, so everyone who opens it
@@ -26,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
  * Contents live in the owner's file under {@code vaults.<number>.items}.
  *
  * <p>Disk access is split from Bukkit access: {@link #read} and {@link #write} run on the persistence
- * queue with plain data, and {@link #create} and {@link #save} run on the server thread.
+ * queue with plain data, and {@link #create} and {@link #snapshotWrite} run on the server thread.
  */
 public class SharedVault implements InventoryHolder {
 
@@ -47,7 +46,6 @@ public class SharedVault implements InventoryHolder {
     private final File file;
     private final String title;
     private Inventory inventory;
-    private CompletableFuture<Void> lastSave = CompletableFuture.completedFuture(null);
 
     private SharedVault(Kind kind, String ownerId, int vaultNumber, File file, String title, ItemStack[] items) {
         this.kind = kind;
@@ -116,26 +114,17 @@ public class SharedVault implements InventoryHolder {
     }
 
     /**
-     * Server thread: snapshot the contents and queue writing them to disk.
-     * @return Completes when the contents are on disk, or exceptionally if the write failed.
+     * Server thread: snapshot the contents now and return the write of that snapshot, for the persistence queue.
      */
-    public CompletableFuture<Void> save() {
+    public PersistenceQueue.VoidTask snapshotWrite() {
         List<String> encoded = InventoryUtility.inventoryPaperToBase64(inventory);
         File target = file;
         int number = vaultNumber;
-        lastSave = SneakyVaults.getInstance().persistence.run(() -> write(target, number, encoded));
-        return lastSave;
+        return () -> write(target, number, encoded);
     }
 
-    /** The most recently queued save, or a completed future if the vault was never saved. */
-    public CompletableFuture<Void> lastSave() { return lastSave; }
-
-    /**
-     * True when nobody is looking at the vault and its last save reached disk, so the file holds
-     * exactly these contents and the vault can be forgotten without losing anything.
-     */
-    public boolean isSafeToForget() {
-        return inventory.getViewers().isEmpty() && lastSave.isDone() && !lastSave.isCompletedExceptionally();
+    public boolean isViewed() {
+        return !inventory.getViewers().isEmpty();
     }
 
     /** Close the vault for everyone looking at it. Closing saves it. */
@@ -167,6 +156,11 @@ public class SharedVault implements InventoryHolder {
     }
 
     public static String key(Kind kind, String ownerId, int vaultNumber) {
-        return kind + ":" + ownerId + ":" + vaultNumber;
+        return keyPrefix(kind, ownerId) + vaultNumber;
+    }
+
+    /** The start of every vault key of one owner. */
+    public static String keyPrefix(Kind kind, String ownerId) {
+        return kind + ":" + ownerId + ":";
     }
 }

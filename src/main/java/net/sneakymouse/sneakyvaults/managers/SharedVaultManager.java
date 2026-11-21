@@ -2,8 +2,7 @@ package net.sneakymouse.sneakyvaults.managers;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
-import net.sneakymouse.sneakyvaults.persistence.PendingLoads;
-import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
+import net.sneakymouse.sneakyvaults.persistence.VaultStore;
 import net.sneakymouse.sneakyvaults.types.Business;
 import net.sneakymouse.sneakyvaults.types.SharedVault;
 import org.bukkit.entity.Player;
@@ -14,21 +13,20 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.BooleanSupplier;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
+import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 import java.util.logging.Level;
 
 /**
- * Keeps character and business vaults that are currently open, and the list of businesses.
- * A vault stays cached while someone is looking at it, so all viewers share one inventory.
+ * Keeps the loaded character and business vaults, and the list of businesses.
+ * There is one inventory per vault, shared by all its viewers. A vault is held in a {@link VaultStore}:
+ * it stays loaded until its last close was written and nobody is looking at it.
  *
  * <p>Server thread only. Files are read and written on the persistence queue; the futures returned
  * here complete on the server thread.
@@ -40,15 +38,15 @@ public class SharedVaultManager {
 
     private final File characterFolder;
     private final File businessFolder;
-    private final Map<String, SharedVault> openVaults = new HashMap<>();
+    private final VaultStore<List<String>, SharedVault> vaults;
     private final Map<String, Business> businesses = new TreeMap<>();
     private final Set<String> busyIds = new HashSet<>();
-    private final PendingLoads<String, Optional<List<String>>> loads;
 
     public SharedVaultManager(File dataFolder) {
         characterFolder = new File(dataFolder, "CharacterData");
         businessFolder = new File(dataFolder, "Businesses");
-        loads = new PendingLoads<>(SneakyVaults.getInstance().serverThread);
+        SneakyVaults plugin = SneakyVaults.getInstance();
+        vaults = new VaultStore<>(plugin.persistence, plugin.serverThread, SharedVault::isViewed, true);
         if(!characterFolder.isDirectory() && !characterFolder.mkdirs())
             SneakyVaults.LOGGER.severe("Failed to create CharacterData folder!");
         if(!businessFolder.isDirectory() && !businessFolder.mkdirs())
@@ -90,7 +88,7 @@ public class SharedVaultManager {
 
         File file = getCharacterFile(characterUUID);
         String playerUUID = player.getUniqueId().toString();
-        return load(SharedVault.Kind.CHARACTER, characterUUID, vaultNumber, file, characterName, size).thenApply(vault -> {
+        return load(SharedVault.Kind.CHARACTER, characterUUID, vaultNumber, file, characterName, size, () -> true).thenApply(vault -> {
             if(vault != null) {
                 vault.growTo(size);
                 // Remember who owns the character so admins can find the file later.
@@ -107,7 +105,7 @@ public class SharedVaultManager {
 
     /** Admin access: only opens vaults that already have saved data. Completes with null otherwise. */
     public CompletableFuture<SharedVault> getExistingCharacterVault(String characterUUID, int vaultNumber) {
-        return load(SharedVault.Kind.CHARACTER, characterUUID, vaultNumber, getCharacterFile(characterUUID), null, 0);
+        return load(SharedVault.Kind.CHARACTER, characterUUID, vaultNumber, getCharacterFile(characterUUID), null, 0, () -> true);
     }
 
     // ---- Business vaults ----
@@ -147,26 +145,25 @@ public class SharedVaultManager {
 
     /**
      * Remove a business. Its file is moved to {@code Businesses/deleted/} rather than erased, but only
-     * once every save its vaults queued when they were closed has reached disk. The id stays reserved
-     * until the move is done. If a save or the move fails, the business comes back unchanged.
+     * once its vaults are written: closing them queues their saves, and the move waits for those. The id
+     * stays reserved until the move is done. If a vault write or the move fails, the business comes back
+     * unchanged, and an unwritten vault stays loaded with its contents.
      * @return Completes on the server thread once the file has been moved.
      */
     public CompletableFuture<Void> deleteBusiness(Business business) {
         String id = business.getId();
+        String prefix = SharedVault.keyPrefix(SharedVault.Kind.BUSINESS, id);
+        Predicate<String> ofBusiness = key -> key.startsWith(prefix);
         closeBusinessVaults(business, null);
-        CompletableFuture<?>[] saves = openVaults.values().stream()
-                .filter(vault -> isVaultOf(vault, business))
-                .map(SharedVault::lastSave)
-                .toArray(CompletableFuture[]::new);
+        CompletableFuture<Void> vaultsWritten = vaults.whenWritten(ofBusiness);
         businesses.remove(id, business);
         busyIds.add(id);
 
         File source = business.getFile();
         File deletedFolder = new File(businessFolder, "deleted");
         File target = new File(deletedFolder, id + "-" + System.currentTimeMillis() + ".yml");
-        PersistenceQueue persistence = SneakyVaults.getInstance().persistence;
-        return CompletableFuture.allOf(saves)
-                .thenCompose(ignored -> persistence.run(() -> {
+        return vaultsWritten
+                .thenCompose(ignored -> SneakyVaults.getInstance().persistence.run(() -> {
                     Files.createDirectories(deletedFolder.toPath());
                     if(source.exists())
                         Files.move(source.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
@@ -177,18 +174,19 @@ public class SharedVaultManager {
                         businesses.putIfAbsent(id, business);
                         return;
                     }
-                    openVaults.values().removeIf(vault -> isVaultOf(vault, business) && vault.getInventory().getViewers().isEmpty());
+                    vaults.removeCleanIf(ofBusiness);
                 }, SneakyVaults.getInstance().serverThread);
     }
 
     /**
      * Get a business vault, creating it at the business's size if it does not exist yet.
      * @param create False for admin access that only opens vaults with saved data.
-     * @return Completes on the server thread with the vault, or null if it has no saved data and create is false.
+     * @return Completes on the server thread with the vault, or null if it has no saved data and create is
+     *         false, or if the business was deleted while the vault was read.
      */
     public CompletableFuture<SharedVault> getBusinessVault(Business business, int vaultNumber, boolean create) {
         int size = create ? business.getVaultSize() : 0;
-        // A read that finishes after the business was deleted must not be cached for a later one with the same id.
+        // A read that finishes after the business was deleted must not be kept for a later one with the same id.
         return load(SharedVault.Kind.BUSINESS, business.getId(), vaultNumber, business.getFile(), business.getName(), size, () -> isCurrent(business))
                 .thenApply(vault -> {
                     if(vault != null)
@@ -206,8 +204,8 @@ public class SharedVaultManager {
      * Close a business's open vaults for everyone, or only for one member's player.
      */
     public void closeBusinessVaults(Business business, @Nullable Player onlyFor) {
-        for(SharedVault vault : new ArrayList<>(openVaults.values())) {
-            if(!isVaultOf(vault, business)) continue;
+        for(SharedVault vault : vaults.values()) {
+            if(vault.getKind() != SharedVault.Kind.BUSINESS || !vault.getOwnerId().equals(business.getId())) continue;
             if(onlyFor == null)
                 vault.closeForAll();
             else if(vault.getInventory().getViewers().contains(onlyFor))
@@ -215,96 +213,39 @@ public class SharedVaultManager {
         }
     }
 
-    private static boolean isVaultOf(SharedVault vault, Business business) {
-        return vault.getKind() == SharedVault.Kind.BUSINESS && vault.getOwnerId().equals(business.getId());
-    }
-
     // ---- Shared ----
 
     /**
-     * The cached vault, or a load of it. Reads run on the persistence queue after any queued save of the
-     * same vault, so a vault reopened right after closing sees its saved contents.
-     */
-    private CompletableFuture<SharedVault> load(SharedVault.Kind kind, String ownerId, int vaultNumber, File file, @Nullable String name, int size) {
-        return load(kind, ownerId, vaultNumber, file, name, size, () -> true);
-    }
-
-    /**
-     * @param stillValid Checked on the server thread once the data has been read; when false, the
-     *                   result is null and nothing is cached.
+     * @param stillValid Checked on the server thread once the data has been read; when false, the result is
+     *                   null and nothing is kept.
      */
     private CompletableFuture<SharedVault> load(SharedVault.Kind kind, String ownerId, int vaultNumber, File file, @Nullable String name,
                                                 int size, BooleanSupplier stillValid) {
-        String key = SharedVault.key(kind, ownerId, vaultNumber);
-        SharedVault cached = openVaults.get(key);
-        if(cached != null) return CompletableFuture.completedFuture(cached);
-
-        PersistenceQueue persistence = SneakyVaults.getInstance().persistence;
-        return loads.load(key, () -> persistence.submit(() -> Optional.ofNullable(SharedVault.read(file, vaultNumber))))
-                .thenApply(encoded -> stillValid.getAsBoolean()
-                        ? adopt(key, kind, ownerId, vaultNumber, file, name, encoded.orElse(null), size)
-                        : null);
+        return vaults.load(SharedVault.key(kind, ownerId, vaultNumber),
+                () -> SharedVault.read(file, vaultNumber),
+                encoded -> stillValid.getAsBoolean() ? SharedVault.create(kind, ownerId, vaultNumber, file, name, encoded, size) : null);
     }
 
-    /**
-     * Server thread: the cached vault if another request built it first, otherwise a new one from the
-     * loaded data, which is cached so every viewer shares it.
-     */
-    private @Nullable SharedVault adopt(String key, SharedVault.Kind kind, String ownerId, int vaultNumber, File file,
-                                        @Nullable String name, @Nullable List<String> encoded, int size) {
-        SharedVault cached = openVaults.get(key);
-        if(cached != null) return cached;
-
-        SharedVault vault;
-        try {
-            vault = SharedVault.create(kind, ownerId, vaultNumber, file, name, encoded, size);
-        } catch(IOException exception) {
-            throw new CompletionException(exception);
-        }
-        if(vault != null)
-            openVaults.put(key, vault);
-        return vault;
-    }
-
-    /** Forget a loaded vault that ended up not being opened, unless it holds changes not yet on disk. */
+    /** Forget a loaded vault that ended up not being opened, unless it holds contents not yet on disk. */
     public void release(SharedVault vault) {
-        if(vault.isSafeToForget())
-            openVaults.remove(vault.toString(), vault);
+        vaults.release(vault.toString());
     }
 
     /**
-     * Called when someone closes a vault. Queues saving it, and forgets it once that save is on disk and
-     * nobody is looking at it any more.
-     *
-     * <p>Forgetting waits for the save: if it failed, the cached inventory stays the authoritative copy
-     * (the next close or shutdown saves it again) instead of a reopen reading the older file. It also
-     * waits for the viewer check: Paper closes a player's current view before opening another, so a
-     * player reopening the same vault would otherwise leave it open but uncached.
-     * @return Completes when the save is on disk, or exceptionally if it failed.
+     * Called when someone closes a vault: queue writing its contents. The store keeps it loaded until that
+     * write succeeded and nobody is looking at it any more.
+     * @return Completes when the contents are on disk, or exceptionally if the write failed.
      */
     public CompletableFuture<Void> onClose(SharedVault vault) {
-        CompletableFuture<Void> save = vault.save();
-        save.whenCompleteAsync((ignored, error) -> {
-            if(vault.lastSave() == save && vault.isSafeToForget())
-                openVaults.remove(vault.toString(), vault);
-        }, SneakyVaults.getInstance().serverThread);
-        return save;
+        return vaults.save(vault.toString(), vault.snapshotWrite());
     }
 
     /**
-     * Queue saving every cached vault; used on disable.
-     *
-     * <p>Vaults of a business that is deleted or being deleted are skipped when their close-save went
-     * through: those contents are already on disk (or archived), and a write queued after the archive
-     * would recreate the business file. If their last save failed, the delete aborts and keeps the file,
-     * so they are saved again.
+     * Queue writing every vault whose contents may not be on disk (open, or its last write failed); used on
+     * disable. A closed vault of a deleted business is already written, so this never recreates its file.
      */
     public void saveAll() {
-        for(SharedVault vault : openVaults.values()) {
-            boolean deleted = vault.getKind() == SharedVault.Kind.BUSINESS && !businesses.containsKey(vault.getOwnerId());
-            if(deleted && !vault.lastSave().isCompletedExceptionally())
-                continue;
-            SneakyVaults.getInstance().reportSaveFailure(vault.save(), vault.toString(), null);
-        }
+        vaults.forEachNeedingSave((key, vault) ->
+                SneakyVaults.getInstance().reportSaveFailure(vaults.save(key, vault.snapshotWrite()), key, null));
     }
 }

@@ -50,7 +50,7 @@ public class InventoryListener implements Listener {
         if(inventory.getHolder() instanceof PlayerVault playerVault){
             try {
                 plugin.reportSaveFailure(
-                        playerVault.save(),
+                        plugin.vaultManager.onClose(playerVault),
                         "vault " + playerVault.getVaultNumber() + " for " + playerVault.getOwner(),
                         event.getPlayer()
                 );
@@ -68,7 +68,7 @@ public class InventoryListener implements Listener {
             }else{
                 Player player = (Player) event.getPlayer();
                 plugin.reportSaveFailure(
-                        plugin.vaultManager.saveTemplateCopy(templateVault, player, event.getInventory()),
+                        plugin.vaultManager.onTemplateCopyClosed(templateVault, player, event.getInventory()),
                         "template vault " + templateVault.getName() + " for " + player.getUniqueId(),
                         player
                 );

@@ -2,6 +2,7 @@ package net.sneakymouse.sneakyvaults.types;
 
 import net.sneakymouse.sneakyvaults.SneakyVaults;
 import net.sneakymouse.sneakyvaults.persistence.AtomicYamlFiles;
+import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
 import com.sneakyutils.util.TextUtility;
 import com.sneakyutils.util.InventoryUtility;
 import org.bukkit.Bukkit;
@@ -17,14 +18,13 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
- * A player's global vault. Once loaded it stays cached in the VaultManager, and its inventory is the
- * authoritative copy: it is written to disk on every close and is never re-read while cached.
+ * A player's global vault. Once loaded it stays in the VaultManager's store for the rest of the session,
+ * and its inventory is the authoritative copy: it is written to disk on every close and never re-read.
  *
  * <p>Disk access is split from Bukkit access: {@link #read} and {@link #write} run on the persistence
- * queue with plain data, and {@link #create} and {@link #save} run on the server thread.
+ * queue with plain data, and {@link #create} and {@link #snapshotWrite} run on the server thread.
  * */
 public class PlayerVault implements InventoryHolder {
 
@@ -132,14 +132,13 @@ public class PlayerVault implements InventoryHolder {
     }
 
     /**
-     * Server thread: snapshot the contents and queue writing them to disk.
-     * @return Completes when the contents are on disk, or exceptionally if the write failed.
+     * Server thread: snapshot the contents now and return the write of that snapshot, for the persistence queue.
      */
-    public CompletableFuture<Void> save() {
+    public PersistenceQueue.VoidTask snapshotWrite() {
         List<String> encodedItems = InventoryUtility.inventoryPaperToBase64(this.inventory);
         File file = this.playerConfigFile;
         int number = this.vaultNumber;
-        return SneakyVaults.getInstance().persistence.run(() -> write(file, number, encodedItems));
+        return () -> write(file, number, encodedItems);
     }
 
     /**
