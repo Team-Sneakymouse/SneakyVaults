@@ -83,9 +83,17 @@ class VaultFilesTest {
     void templateCopyReadsEmptyWhenAbsent() throws IOException {
         File file = directory.resolve("player.yml").toFile();
         assertEquals("", TemplateVault.readPlayerCopy(file, "starter"));
+        assertTrue(!file.exists());
+    }
 
-        AtomicYamlFiles.update(file, configuration -> configuration.set("template_vaults.starter.inventory", "saved"));
+    @Test
+    void templateCopyWriteThenReadRoundTripsAndKeepsVaults() throws IOException {
+        File file = directory.resolve("player.yml").toFile();
+        PlayerVault.write(file, 1, List.of("a"));
+
+        TemplateVault.writePlayerCopy(file, "starter", "saved");
+
         assertEquals("saved", TemplateVault.readPlayerCopy(file, "starter"));
-        assertTrue(file.isFile());
+        assertEquals(List.of("a"), PlayerVault.read(file, 1).paperItems());
     }
 }

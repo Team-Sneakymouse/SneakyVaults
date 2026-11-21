@@ -291,8 +291,20 @@ public class SharedVaultManager {
         return save;
     }
 
-    /** Queue saving every cached vault; used on disable. */
+    /**
+     * Queue saving every cached vault; used on disable.
+     *
+     * <p>Vaults of a business that is deleted or being deleted are skipped when their close-save went
+     * through: those contents are already on disk (or archived), and a write queued after the archive
+     * would recreate the business file. If their last save failed, the delete aborts and keeps the file,
+     * so they are saved again.
+     */
     public void saveAll() {
-        openVaults.values().forEach(vault -> SneakyVaults.getInstance().reportSaveFailure(vault.save(), vault.toString(), null));
+        for(SharedVault vault : openVaults.values()) {
+            boolean deleted = vault.getKind() == SharedVault.Kind.BUSINESS && !businesses.containsKey(vault.getOwnerId());
+            if(deleted && !vault.lastSave().isCompletedExceptionally())
+                continue;
+            SneakyVaults.getInstance().reportSaveFailure(vault.save(), vault.toString(), null);
+        }
     }
 }

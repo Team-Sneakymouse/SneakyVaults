@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PersistenceQueueTest {
 
-    private final PersistenceQueue queue = new PersistenceQueue("test-io");
+    private final PersistenceQueue queue = new PersistenceQueue("test-io", message -> {});
 
     @AfterEach
     void stop() throws InterruptedException {
@@ -118,7 +118,7 @@ class PersistenceQueueTest {
 
     @Test
     void taskSubmittedWhileAStalledWriteOutlivesShutdownFailsInsteadOfOvertakingIt() throws Exception {
-        PersistenceQueue stalled = new PersistenceQueue("test-io-stalled", 50);
+        PersistenceQueue stalled = new PersistenceQueue("test-io-stalled", message -> {}, 50);
         CountDownLatch release = new CountDownLatch(1);
         List<String> order = Collections.synchronizedList(new ArrayList<>());
         stalled.run(() -> {
@@ -137,6 +137,57 @@ class PersistenceQueueTest {
         release.countDown();
         assertTrue(stalled.shutdown(5, TimeUnit.SECONDS));
         assertEquals(List.of("old"), order);
+    }
+
+    @Test
+    void taskSubmittedFromTheWorkerAfterShutdownRunsAtOnceInsteadOfWaitingForItself() throws Exception {
+        CountDownLatch shuttingDown = new CountDownLatch(1);
+        AtomicReference<CompletableFuture<Void>> continuation = new AtomicReference<>();
+        List<String> order = Collections.synchronizedList(new ArrayList<>());
+        queue.run(() -> {
+            try {
+                shuttingDown.await();
+            } catch(InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            // Like a thenCompose continuation that queues the next step while the plugin disables.
+            continuation.set(queue.run(() -> order.add("continuation")));
+            order.add("first");
+        });
+
+        Thread releaser = new Thread(() -> {
+            try {
+                Thread.sleep(50);
+            } catch(InterruptedException ignored) {}
+            shuttingDown.countDown();
+        });
+        releaser.start();
+        long started = System.nanoTime();
+        assertTrue(queue.shutdown(5, TimeUnit.SECONDS));
+
+        assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < 2_000, "the worker must not wait for itself");
+        continuation.get().get(1, TimeUnit.SECONDS);
+        assertTrue(order.containsAll(List.of("continuation", "first")));
+    }
+
+    @Test
+    void warnsOnceWhenTheBacklogGrowsPastTheLimit() throws Exception {
+        List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+        PersistenceQueue backlogged = new PersistenceQueue("test-io-backlog", warnings::add);
+        CountDownLatch release = new CountDownLatch(1);
+        backlogged.run(() -> {
+            try {
+                release.await();
+            } catch(InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+        for(int i = 0; i < PersistenceQueue.BACKLOG_WARNING + 50; i++)
+            backlogged.run(() -> {});
+
+        release.countDown();
+        assertTrue(backlogged.shutdown(5, TimeUnit.SECONDS));
+        assertEquals(1, warnings.size());
     }
 
     @Test

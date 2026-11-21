@@ -68,8 +68,8 @@ public class InventoryListener implements Listener {
             }else{
                 Player player = (Player) event.getPlayer();
                 plugin.reportSaveFailure(
-                        templateVault.saveCopy(player, event.getInventory()),
-                        "template vault for " + player.getUniqueId(),
+                        plugin.vaultManager.saveTemplateCopy(templateVault, player, event.getInventory()),
+                        "template vault " + templateVault.getName() + " for " + player.getUniqueId(),
                         player
                 );
             }

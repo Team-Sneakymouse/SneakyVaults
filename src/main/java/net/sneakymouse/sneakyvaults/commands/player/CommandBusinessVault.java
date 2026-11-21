@@ -96,6 +96,7 @@ public class CommandBusinessVault extends CommandBase {
 
         SharedVaultManager manager = SneakyVaults.getInstance().sharedVaultManager;
         int number = vaultNumber;
+        long request = SneakyVaults.getInstance().beginOpen(player);
         long loading = SneakyVaults.getInstance().probe.start();
         CompletableFuture<SharedVault> load;
         try {
@@ -117,7 +118,9 @@ public class CommandBusinessVault extends CommandBase {
             // business may have been deleted or the character removed from it.
             CharacterHook.CharacterRef current = player.isOnline() ? CharacterHook.current(player) : null;
             if(current == null || !current.uuid().equals(character.uuid()) || !manager.isCurrent(business) || !business.isMember(current.uuid())
-                    // An admin may have lowered the vault count meanwhile.
+                    // The player may also have opened something newer or lost the command permission,
+                    // or an admin may have lowered the vault count.
+                    || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)
                     || number > business.getVaultCount()) {
                 manager.release(vault);
                 return;

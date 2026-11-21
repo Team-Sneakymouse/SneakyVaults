@@ -69,6 +69,7 @@ public class CommandCharacterVault extends CommandBase {
 
         SharedVaultManager manager = SneakyVaults.getInstance().sharedVaultManager;
         int number = vaultNumber;
+        long request = SneakyVaults.getInstance().beginOpen(player);
         long loading = SneakyVaults.getInstance().probe.start();
         CompletableFuture<SharedVault> load;
         try {
@@ -89,11 +90,13 @@ public class CommandCharacterVault extends CommandBase {
                 player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cYou don't have access to character vault " + number + "!"));
                 return;
             }
-            // The player may have left or switched character while the vault was read.
+            // While the vault was read the player may have left, switched character, opened something
+            // newer, or lost the command, vault-count or slots permission.
             CharacterHook.CharacterRef current = player.isOnline() ? CharacterHook.current(player) : null;
-            // Permissions may also have changed meanwhile.
             if(current == null || !current.uuid().equals(character.uuid())
-                    || number > VaultManager.maxVaultsFromPermissions(player, SharedVaultManager.CHARACTER_MAX_PREFIX)) {
+                    || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)
+                    || number > VaultManager.maxVaultsFromPermissions(player, SharedVaultManager.CHARACTER_MAX_PREFIX)
+                    || VaultManager.maxSlotsFromPermissions(player, SharedVaultManager.CHARACTER_SLOTS_PREFIX) < 9) {
                 manager.release(vault);
                 return;
             }

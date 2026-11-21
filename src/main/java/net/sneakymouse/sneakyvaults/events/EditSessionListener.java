@@ -21,6 +21,14 @@ public class EditSessionListener implements Listener {
             return;
 
         event.setCancelled(true);
+        // The rest edits the shared config and saves it, which must happen on the server thread so config
+        // snapshots are taken and queued in the same order as every other config change.
+        SneakyVaults.getInstance().serverThread.execute(() -> handleSizeAnswer(player, message));
+    }
+
+    private static void handleSizeAnswer(Player player, String message){
+        if(!player.isOnline() || !SneakyVaults.getInstance().vaultManager.vaultSizeSession.containsKey(player.getUniqueId().toString()))
+            return;
 
         if(message.equalsIgnoreCase("cancel")){
             SneakyVaults.getInstance().vaultManager.vaultSizeSession.remove(player.getUniqueId().toString());
@@ -60,5 +68,4 @@ public class EditSessionListener implements Listener {
         }
 
     }
-
 }

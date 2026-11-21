@@ -65,6 +65,7 @@ public class CommandPeekCharacterVault extends CommandAdminBase {
         SharedVaultManager manager = SneakyVaults.getInstance().sharedVaultManager;
         String character = characterUUID;
         int number = vaultNumber;
+        long request = SneakyVaults.getInstance().beginOpen(player);
         manager.getExistingCharacterVault(characterUUID, vaultNumber).whenComplete((vault, error) -> {
             // Runs on the server thread, now or once the vault has been read.
             if(error != null) {
@@ -77,7 +78,8 @@ public class CommandPeekCharacterVault extends CommandAdminBase {
                 player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault does not exist."));
                 return;
             }
-            if(!player.isOnline()) {
+            // The admin may have left, opened something newer, or lost the command permission meanwhile.
+            if(!player.isOnline() || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) {
                 manager.release(vault);
                 return;
             }

@@ -140,18 +140,13 @@ public class CommandSearchVault extends CommandAdminBase {
     }
 
     private void searchPlayerVaults(Predicate<ItemStack> matcher, Consumer<SearchResultData> onResultfound, Runnable onComplete) {
-        if(!vaultData.exists() || !vaultData.isDirectory()) {
-            onComplete.run();
-            return;
-        }
-        File[] playerDataFiles = vaultData.listFiles();
-
-        if(playerDataFiles == null) {
-            onComplete.run();
-            return;
-        }
-
+        // Listing the folder is disk access too, so it happens in the background task with the reads.
         Bukkit.getScheduler().runTaskAsynchronously(SneakyVaults.getInstance(), () -> {
+            File[] playerDataFiles = vaultData.isDirectory() ? vaultData.listFiles() : null;
+            if(playerDataFiles == null) {
+                Bukkit.getScheduler().runTask(SneakyVaults.getInstance(), onComplete);
+                return;
+            }
             for(File playerDataFile : playerDataFiles) {
                 YamlConfiguration configuration = YamlConfiguration.loadConfiguration(playerDataFile);
                 ConfigurationSection vaults = configuration.getConfigurationSection("player_vaults");

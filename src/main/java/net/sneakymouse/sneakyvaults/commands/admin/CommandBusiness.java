@@ -151,6 +151,7 @@ public class CommandBusiness extends CommandAdminBase {
                     if(parsed == null) return false;
                     vaultNumber = parsed;
                 }
+                long request = SneakyVaults.getInstance().beginOpen(player);
                 manager.getBusinessVault(business, vaultNumber, false).whenComplete((vault, error) -> {
                     // Runs on the server thread, now or once the vault has been read.
                     if(error != null) {
@@ -160,7 +161,8 @@ public class CommandBusiness extends CommandAdminBase {
                     }
                     if(!manager.isCurrent(business)) { send(sender, "&cThat business was deleted."); return; }
                     if(vault == null) { send(sender, "&cThat vault has never been used."); return; }
-                    if(!player.isOnline() || !manager.isCurrent(business)) {
+                    if(!player.isOnline() || !manager.isCurrent(business)
+                            || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) {
                         manager.release(vault);
                         return;
                     }

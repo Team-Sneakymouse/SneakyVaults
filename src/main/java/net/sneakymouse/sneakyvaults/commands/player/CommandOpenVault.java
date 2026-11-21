@@ -61,9 +61,11 @@ public class CommandOpenVault extends CommandBase {
 
         String playerUUID = player.getUniqueId().toString();
         int number = vaultNumber;
+        long request = SneakyVaults.getInstance().beginOpen(player);
         SneakyVaults.getInstance().vaultManager.getPlayerVault(playerUUID, vaultNumber).whenComplete((vault, error) -> {
-            // Runs on the server thread, now or once the vault has been read.
-            if(!player.isOnline()) return;
+            // Runs on the server thread, now or once the vault has been read. By then the player may have
+            // left, opened something newer, or lost the command permission.
+            if(!player.isOnline() || !SneakyVaults.getInstance().isLatestOpen(player, request) || !testPermissionSilent(player)) return;
             if(error != null){
                 SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable vault " + number + " for " + playerUUID, PersistenceQueue.cause(error));
                 player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));

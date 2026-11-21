@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 
 /**
@@ -43,16 +44,18 @@ public class CommandForceConversion extends CommandAdminBase {
 
         SneakyVaults plugin = SneakyVaults.getInstance();
         File folder = plugin.playerDataFolder;
+        // Files or vaults that were skipped or could not be written, counted across all three steps.
+        AtomicInteger problems = new AtomicInteger();
         plugin.persistence.submit(() -> {
                     File[] playerDataFiles = folder.listFiles();
-                    return playerDataFiles == null ? null : findLegacyVaults(playerDataFiles);
+                    return playerDataFiles == null ? null : findLegacyVaults(playerDataFiles, problems);
                 })
-                .thenApplyAsync(legacy -> legacy == null ? null : convert(legacy), plugin.serverThread)
+                .thenApplyAsync(legacy -> legacy == null ? null : convert(legacy, problems), plugin.serverThread)
                 .thenCompose(converted -> converted == null
-                        ? CompletableFuture.<Integer>completedFuture(null)
-                        : plugin.persistence.submit(() -> writeConverted(converted)))
-                .whenCompleteAsync((failedFiles, error) -> {
-                    if(error == null && failedFiles == null) {
+                        ? CompletableFuture.<Boolean>completedFuture(false)
+                        : plugin.persistence.submit(() -> { writeConverted(converted, problems); return true; }))
+                .whenCompleteAsync((found, error) -> {
+                    if(error == null && !found) {
                         sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&4No player data files found!"));
                         return;
                     }
@@ -61,9 +64,9 @@ public class CommandForceConversion extends CommandAdminBase {
                         sender.sendMessage(TextUtility.INSTANCE.convertToComponent("&cVault conversion failed. Check the server log."));
                         return;
                     }
-                    if(failedFiles > 0) {
+                    if(problems.get() > 0) {
                         sender.sendMessage(TextUtility.INSTANCE.convertToComponent(
-                                "&c" + failedFiles + " player data files could not be converted. Check the server log."));
+                                "&c" + problems.get() + " player data files or vaults were skipped or could not be converted. Check the server log."));
                         return;
                     }
                     sender.sendMessage(
@@ -76,7 +79,7 @@ public class CommandForceConversion extends CommandAdminBase {
     }
 
     /** Persistence thread: the old-format vaults in each file. */
-    private static Map<File, Map<String, String>> findLegacyVaults(File[] playerDataFiles) {
+    private static Map<File, Map<String, String>> findLegacyVaults(File[] playerDataFiles, AtomicInteger problems) {
         Map<File, Map<String, String>> legacy = new LinkedHashMap<>();
         for(File playerDataFile : playerDataFiles) {
             YamlConfiguration configuration;
@@ -84,6 +87,7 @@ public class CommandForceConversion extends CommandAdminBase {
                 configuration = AtomicYamlFiles.load(playerDataFile);
             } catch(IOException exception) {
                 SneakyVaults.LOGGER.log(Level.WARNING, "Skipping unreadable " + playerDataFile.getName() + " for conversion", exception);
+                problems.incrementAndGet();
                 continue;
             }
             ConfigurationSection vaults = configuration.getConfigurationSection("player_vaults");
@@ -94,6 +98,12 @@ public class CommandForceConversion extends CommandAdminBase {
 
                 String vaultInventory = vaults.getString(vault);
                 if(vaultInventory == null) continue;
+                if(vaultInventory.isBlank()) {
+                    // Opening such a vault is refused too; don't turn it into an empty one.
+                    SneakyVaults.LOGGER.warning("Skipping vault " + vault + " in " + playerDataFile.getName() + ": it has no readable inventory data");
+                    problems.incrementAndGet();
+                    continue;
+                }
                 legacy.computeIfAbsent(playerDataFile, ignored -> new LinkedHashMap<>()).put(vault, vaultInventory);
             }
         }
@@ -101,7 +111,7 @@ public class CommandForceConversion extends CommandAdminBase {
     }
 
     /** Server thread: decode each old-format vault and encode it in the Paper format. */
-    private static Map<File, Map<String, Legacy>> convert(Map<File, Map<String, String>> legacy) {
+    private static Map<File, Map<String, Legacy>> convert(Map<File, Map<String, String>> legacy, AtomicInteger problems) {
         Map<File, Map<String, Legacy>> converted = new LinkedHashMap<>();
         legacy.forEach((playerDataFile, vaults) -> vaults.forEach((vault, vaultInventory) -> {
             Inventory inventory = Bukkit.createInventory(null, 9);
@@ -111,12 +121,14 @@ public class CommandForceConversion extends CommandAdminBase {
                 items = InventoryUtility.getSavedInventory(vaultInventory);
             } catch (IOException e) {
                 SneakyVaults.LOGGER.warning("Failed to decode vault inventory for conversion: " + e.getMessage());
+                problems.incrementAndGet();
                 return;
             }
             if(items.length > inventory.getSize()) {
                 SneakyVaults.LOGGER.warning("Saved inventory is larger then localized inventory size? This is strange but will be fixed!");
                 if(items.length % 9 != 0) {
                     SneakyVaults.LOGGER.severe("Error: Saved inventory size is not a multiple of 9. This should be impossible!");
+                    problems.incrementAndGet();
                     return;
                 }
                 inventory = Bukkit.createInventory(null, items.length, TextUtility.INSTANCE.convertToComponent("&ePlayer Vault"));
@@ -132,10 +144,9 @@ public class CommandForceConversion extends CommandAdminBase {
     /**
      * Persistence thread: write the converted vaults. A vault that was saved since it was read is no
      * longer in the old format and is left alone, so a newer save is never replaced.
-     * @return The number of files that could not be written.
+     * Files that could not be written are counted in problems.
      */
-    private static int writeConverted(Map<File, Map<String, Legacy>> converted) {
-        int failed = 0;
+    private static void writeConverted(Map<File, Map<String, Legacy>> converted, AtomicInteger problems) {
         for(Map.Entry<File, Map<String, Legacy>> entry : converted.entrySet()) {
             try {
                 AtomicYamlFiles.update(entry.getKey(), configuration -> {
@@ -149,9 +160,8 @@ public class CommandForceConversion extends CommandAdminBase {
                 });
             } catch(IOException exception) {
                 SneakyVaults.LOGGER.log(Level.SEVERE, "Could not write converted vaults to " + entry.getKey().getName(), exception);
-                failed++;
+                problems.incrementAndGet();
             }
         }
-        return failed;
     }
 }

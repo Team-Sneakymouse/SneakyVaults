@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -58,6 +60,12 @@ public class SneakyVaults extends JavaPlugin {
             // The plugin was disabled between the check and the call.
         }
     };
+
+    /** False when config.yml could not be parsed at enable; saving would then replace it with defaults. */
+    private boolean configWritable = true;
+    /** Each player's latest vault open request, so a slow load can't replace a view opened after it. Server thread only. */
+    private final Map<Player, Long> openRequests = new WeakHashMap<>();
+    private long nextOpenRequest = 0;
 
     public Plugin msPlugin = null;
     /** SneakyDiagnostics measurements (optional): vault load and openInventory timing, see the README. */
@@ -91,9 +99,16 @@ public class SneakyVaults extends JavaPlugin {
 
         msPlugin = Bukkit.getPluginManager().getPlugin("MagicSpells");
 
-        persistence = new PersistenceQueue("SneakyVaults-IO");
+        persistence = new PersistenceQueue("SneakyVaults-IO", LOGGER::warning);
 
         saveDefaultConfig();
+        // Paper reads a malformed config.yml as empty; saving that would replace the file, so check it strictly first.
+        try {
+            AtomicYamlFiles.load(getDataFolder().toPath().resolve("config.yml").toFile());
+        } catch(IOException exception) {
+            configWritable = false;
+            LOGGER.log(Level.SEVERE, "config.yml is not valid YAML. Template changes will not be saved until it is fixed and the server restarted.", exception);
+        }
         // Load config.yml now, while enabling: getConfig() reads the file lazily on first use, which would
         // otherwise happen in an event handler (the banned-item check on inventory clicks).
         getConfig();
@@ -173,6 +188,22 @@ public class SneakyVaults extends JavaPlugin {
         reportFailure(save, "Failed to save " + what, notify, "&cThe vault could not be saved. A server maintainer has been notified.");
     }
 
+    /**
+     * Server thread: start an open request for a player. Only the latest one may open a view.
+     * @return The request's token for {@link #isLatestOpen}.
+     */
+    public long beginOpen(Player player) {
+        long request = ++nextOpenRequest;
+        openRequests.put(player, request);
+        return request;
+    }
+
+    /** Server thread: true while no newer open request was started for the player. */
+    public boolean isLatestOpen(Player player, long request) {
+        Long latest = openRequests.get(player);
+        return latest != null && latest == request;
+    }
+
     /** True when SneakyCharacterManager is enabled, which character and business vaults need. */
     public boolean hasCharacters() {
         return characters;
@@ -180,6 +211,10 @@ public class SneakyVaults extends JavaPlugin {
 
     @Override
     public void saveConfig() {
+        if(!configWritable) {
+            LOGGER.severe("Not saving config.yml: it could not be read when the plugin enabled, and saving would replace it.");
+            return;
+        }
         String yaml = getConfig().saveToString();
         Path target = getDataFolder().toPath().resolve("config.yml");
         if(persistence == null) {
