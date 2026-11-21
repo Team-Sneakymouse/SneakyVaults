@@ -5,6 +5,7 @@ import net.sneakymouse.sneakyvaults.commands.CommandBase;
 import net.sneakymouse.sneakyvaults.integration.Probe;
 import net.sneakymouse.sneakyvaults.integration.CharacterHook;
 import net.sneakymouse.sneakyvaults.managers.SharedVaultManager;
+import net.sneakymouse.sneakyvaults.managers.VaultManager;
 import net.sneakymouse.sneakyvaults.persistence.PersistenceQueue;
 import net.sneakymouse.sneakyvaults.types.SharedVault;
 import com.sneakyutils.util.TextUtility;
@@ -90,7 +91,9 @@ public class CommandCharacterVault extends CommandBase {
             }
             // The player may have left or switched character while the vault was read.
             CharacterHook.CharacterRef current = player.isOnline() ? CharacterHook.current(player) : null;
-            if(current == null || !current.uuid().equals(character.uuid())) {
+            // Permissions may also have changed meanwhile.
+            if(current == null || !current.uuid().equals(character.uuid())
+                    || number > VaultManager.maxVaultsFromPermissions(player, SharedVaultManager.CHARACTER_MAX_PREFIX)) {
                 manager.release(vault);
                 return;
             }

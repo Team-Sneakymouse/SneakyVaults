@@ -63,7 +63,9 @@ public class CommandBusiness extends CommandAdminBase {
             String name = args.length > 2 ? String.join(" ", Arrays.copyOfRange(args, 2, args.length)) : id;
             CompletableFuture<Void> created = manager.createBusiness(id, name);
             if(created == null)
-                send(sender, "&cBusiness " + id + " already exists.");
+                send(sender, manager.isBusy(id)
+                        ? "&cBusiness " + id + " is still being created or deleted. Try again in a moment."
+                        : "&cBusiness " + id + " already exists.");
             else
                 afterSave(sender, created, args, "&cThat failed and nothing was changed on disk. Check the server log.",
                         () -> send(sender, "&eCreated business " + id + " &7(" + name + ")&e. Add members with /business add " + id + " <player>"));
@@ -72,7 +74,9 @@ public class CommandBusiness extends CommandAdminBase {
 
         Business business = manager.getBusiness(id);
         if(business == null) {
-            send(sender, "&cNo business called " + id + ".");
+            send(sender, manager.isBusy(id)
+                    ? "&cBusiness " + id + " is still being created or deleted. Try again in a moment."
+                    : "&cNo business called " + id + ".");
             return false;
         }
 
@@ -83,7 +87,7 @@ public class CommandBusiness extends CommandAdminBase {
                     send(sender, "&cThis removes " + id + " and all its vaults. Type /business delete " + id + " confirm");
                     return false;
                 }
-                afterSave(sender, manager.deleteBusiness(business), args, "&cThe file could not be moved, so " + id + " was kept. Check the server log.",
+                afterSave(sender, manager.deleteBusiness(business), args, "&c" + id + " could not be deleted (a vault save or the file move failed), so it was kept. Check the server log.",
                         () -> send(sender, "&eDeleted business " + id + ". Its file was moved to Businesses/deleted."));
             }
             case "rename" -> {
@@ -154,6 +158,7 @@ public class CommandBusiness extends CommandAdminBase {
                         send(sender, "&cThat vault could not be read safely. Check the server log.");
                         return;
                     }
+                    if(!manager.isCurrent(business)) { send(sender, "&cThat business was deleted."); return; }
                     if(vault == null) { send(sender, "&cThat vault has never been used."); return; }
                     if(!player.isOnline() || !manager.isCurrent(business)) {
                         manager.release(vault);

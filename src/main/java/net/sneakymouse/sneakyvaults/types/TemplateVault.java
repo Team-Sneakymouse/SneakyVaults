@@ -15,6 +15,8 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class TemplateVault implements InventoryHolder {
@@ -24,6 +26,7 @@ public class TemplateVault implements InventoryHolder {
     private String vaultName;
     private FileConfiguration config;
     private ConfigurationSection templateSection;
+    private final Map<String, Integer> copySaves = new HashMap<>();
 
     public TemplateVault(String vaultName, int size, boolean editMode){
         this.size = size;
@@ -42,10 +45,19 @@ public class TemplateVault implements InventoryHolder {
     public int getSize() { return size; }
 
     /**
+     * How many times a player's copy has been queued for saving. An open compares it before and after
+     * reading the copy, so it never shows a copy older than one saved meanwhile. Server thread only.
+     */
+    public int copySaves(String playerUUID) {
+        return copySaves.getOrDefault(playerUUID, 0);
+    }
+
+    /**
      * Server thread: snapshot the player's copy of this template and queue writing it to their file.
      * @return Completes when written, or exceptionally if the write failed.
      */
     public CompletableFuture<Void> saveCopy(Player player, Inventory closedInventory){
+        copySaves.merge(player.getUniqueId().toString(), 1, Integer::sum);
         String inventory = InventoryUtility.inventoryToPaperYaml(closedInventory.getContents());
         File playerConfigFile = PlayerVault.fileFor(player.getUniqueId().toString());
         String path = "template_vaults." + this.vaultName + ".inventory";

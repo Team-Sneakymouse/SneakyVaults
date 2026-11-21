@@ -116,7 +116,9 @@ public class CommandBusinessVault extends CommandBase {
             // While the vault was read the player may have left or switched character, or the
             // business may have been deleted or the character removed from it.
             CharacterHook.CharacterRef current = player.isOnline() ? CharacterHook.current(player) : null;
-            if(current == null || !current.uuid().equals(character.uuid()) || !manager.isCurrent(business) || !business.isMember(current.uuid())) {
+            if(current == null || !current.uuid().equals(character.uuid()) || !manager.isCurrent(business) || !business.isMember(current.uuid())
+                    // An admin may have lowered the vault count meanwhile.
+                    || number > business.getVaultCount()) {
                 manager.release(vault);
                 return;
             }

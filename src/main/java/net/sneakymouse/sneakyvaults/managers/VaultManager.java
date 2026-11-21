@@ -262,6 +262,10 @@ public class VaultManager {
     }
 
     private CompletableFuture<Boolean> openTemplate(String playerUUID, String vaultName, boolean toForce){
+        return openTemplate(playerUUID, vaultName, toForce, 0);
+    }
+
+    private CompletableFuture<Boolean> openTemplate(String playerUUID, String vaultName, boolean toForce, int attempt){
         TemplateVault vault = getOrCreateTemplateVault(vaultName);
         if(vault == null || vault.isEditMode()) return CompletableFuture.completedFuture(false);
 
@@ -269,21 +273,37 @@ public class VaultManager {
         if(player == null) return CompletableFuture.completedFuture(false);
 
         CompletableFuture<String> savedCopy;
+        int savesBefore = vault.copySaves(playerUUID);
         if(toForce) {
             savedCopy = CompletableFuture.completedFuture("");
         } else {
+            // A copy the player still has open is saved by closing it, so read only after that save.
+            if(isViewingTemplate(player, vault)) {
+                player.closeInventory();
+                savesBefore = vault.copySaves(playerUUID);
+            }
             File file = PlayerVault.fileFor(playerUUID);
+            // whenCompleteAsync moves failures to the server thread too; thenApplyAsync would skip the hop.
             savedCopy = SneakyVaults.getInstance().persistence.submit(() -> TemplateVault.readPlayerCopy(file, vaultName))
-                    .thenApplyAsync(copy -> copy, SneakyVaults.getInstance().serverThread);
+                    .whenCompleteAsync((copy, error) -> {}, SneakyVaults.getInstance().serverThread);
         }
 
+        int readAfterSaves = savesBefore;
         return savedCopy.handle((copy, error) -> {
             if(error != null) {
                 SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, PersistenceQueue.cause(error));
-                return false;
+                return CompletableFuture.completedFuture(false);
             }
             // The player may have left, or an edit session started, while the copy was read.
-            if(!player.isOnline() || vault.isEditMode()) return false;
+            if(!player.isOnline() || vault.isEditMode()) return CompletableFuture.completedFuture(false);
+            // A copy saved, or still open, since the read would be replaced by the older one: read again.
+            if(!toForce && (vault.copySaves(playerUUID) != readAfterSaves || isViewingTemplate(player, vault))) {
+                if(attempt >= 2) {
+                    SneakyVaults.LOGGER.warning("Gave up opening template vault " + vaultName + " for " + playerUUID + ": its copy kept changing");
+                    return CompletableFuture.completedFuture(false);
+                }
+                return openTemplate(playerUUID, vaultName, false, attempt + 1);
+            }
 
             Inventory inventory;
             long loading = SneakyVaults.getInstance().probe.start();
@@ -291,7 +311,7 @@ public class VaultManager {
                 inventory = vault.buildPlayerInventory(copy);
             } catch(IOException e){
                 SneakyVaults.LOGGER.log(Level.SEVERE, "Refusing to open unreadable template vault " + vaultName + " for " + playerUUID, e);
-                return false;
+                return CompletableFuture.completedFuture(false);
             } finally {
                 SneakyVaults.getInstance().probe.end("vault.template.load", loading);
             }
@@ -302,8 +322,12 @@ public class VaultManager {
             } finally {
                 SneakyVaults.getInstance().probe.end("vault.template.open-inventory", shown);
             }
-            return true;
-        });
+            return CompletableFuture.completedFuture(true);
+        }).thenCompose(result -> result);
+    }
+
+    private static boolean isViewingTemplate(Player player, TemplateVault vault) {
+        return player.getOpenInventory().getTopInventory().getHolder() == vault;
     }
 
     /**

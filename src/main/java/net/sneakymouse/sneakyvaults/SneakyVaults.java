@@ -94,6 +94,9 @@ public class SneakyVaults extends JavaPlugin {
         persistence = new PersistenceQueue("SneakyVaults-IO");
 
         saveDefaultConfig();
+        // Load config.yml now, while enabling: getConfig() reads the file lazily on first use, which would
+        // otherwise happen in an event handler (the banned-item check on inventory clicks).
+        getConfig();
 
         //Load Managers
         vaultManager = new VaultManager();

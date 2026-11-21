@@ -69,7 +69,8 @@ public class CommandOpenVault extends CommandBase {
                 player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cThat vault could not be read safely. A server maintainer has been notified."));
                 return;
             }
-            if(vault == null){
+            // Permissions may have changed while the vault was read.
+            if(vault == null || number > SneakyVaults.getInstance().vaultManager.getMaxAllowedVaults(playerUUID)){
                 player.sendMessage(TextUtility.INSTANCE.convertToComponent("&cCould not find your player vault!"));
                 return;
             }

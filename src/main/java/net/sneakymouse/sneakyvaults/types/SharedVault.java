@@ -47,6 +47,7 @@ public class SharedVault implements InventoryHolder {
     private final File file;
     private final String title;
     private Inventory inventory;
+    private CompletableFuture<Void> lastSave = CompletableFuture.completedFuture(null);
 
     private SharedVault(Kind kind, String ownerId, int vaultNumber, File file, String title, ItemStack[] items) {
         this.kind = kind;
@@ -122,7 +123,19 @@ public class SharedVault implements InventoryHolder {
         List<String> encoded = InventoryUtility.inventoryPaperToBase64(inventory);
         File target = file;
         int number = vaultNumber;
-        return SneakyVaults.getInstance().persistence.run(() -> write(target, number, encoded));
+        lastSave = SneakyVaults.getInstance().persistence.run(() -> write(target, number, encoded));
+        return lastSave;
+    }
+
+    /** The most recently queued save, or a completed future if the vault was never saved. */
+    public CompletableFuture<Void> lastSave() { return lastSave; }
+
+    /**
+     * True when nobody is looking at the vault and its last save reached disk, so the file holds
+     * exactly these contents and the vault can be forgotten without losing anything.
+     */
+    public boolean isSafeToForget() {
+        return inventory.getViewers().isEmpty() && lastSave.isDone() && !lastSave.isCompletedExceptionally();
     }
 
     /** Close the vault for everyone looking at it. Closing saves it. */

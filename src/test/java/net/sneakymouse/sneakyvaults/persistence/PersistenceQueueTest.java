@@ -117,6 +117,29 @@ class PersistenceQueueTest {
     }
 
     @Test
+    void taskSubmittedWhileAStalledWriteOutlivesShutdownFailsInsteadOfOvertakingIt() throws Exception {
+        PersistenceQueue stalled = new PersistenceQueue("test-io-stalled", 50);
+        CountDownLatch release = new CountDownLatch(1);
+        List<String> order = Collections.synchronizedList(new ArrayList<>());
+        stalled.run(() -> {
+            try {
+                release.await();
+            } catch(InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            order.add("old");
+        });
+        assertFalse(stalled.shutdown(50, TimeUnit.MILLISECONDS));
+
+        CompletableFuture<Void> late = stalled.run(() -> order.add("new"));
+
+        assertThrows(ExecutionException.class, late::get);
+        release.countDown();
+        assertTrue(stalled.shutdown(5, TimeUnit.SECONDS));
+        assertEquals(List.of("old"), order);
+    }
+
+    @Test
     void failedTaskAfterShutdownCompletesExceptionally() throws Exception {
         assertTrue(queue.shutdown(5, TimeUnit.SECONDS));
         IOException failure = new IOException("disk full");
