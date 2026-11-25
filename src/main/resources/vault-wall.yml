@@ -20,150 +20,150 @@ discount_variable: skillTradingTier4A
 chests:
   # Penny
   penny-1:
-    location: world,5031,60,5016
+    location: world,5017,64,5045
     vault: 1
     owned_variable: vaultPenny1
     price: { currency: bankPenny, amount: 100, label: Pennies }
   penny-2:
-    location: world,5031,60,5018
+    location: world,5017,64,5044
     vault: 2
     owned_variable: vaultPenny2
     price: { currency: bankPenny, amount: 1000, label: Pennies }
   penny-3:
-    location: world,5031,61,5016
+    location: world,5017,65,5045
     vault: 3
     owned_variable: vaultPenny3
     price: { currency: bankPenny, amount: 10000, label: Pennies }
   penny-4:
-    location: world,5031,61,5018
+    location: world,5017,65,5044
     vault: 4
     owned_variable: vaultPenny4
     price: { currency: bankPenny, amount: 100000, label: Pennies }
   penny-5:
-    location: world,5031,62,5016
+    location: world,5017,66,5045
     vault: 5
     owned_variable: vaultPenny5
     price: { currency: bankPenny, amount: 1000000, label: Pennies }
   penny-6:
-    location: world,5031,62,5018
+    location: world,5017,66,5044
     vault: 6
     owned_variable: vaultPenny6
     price: { currency: bankPenny, amount: 10000000, label: Pennies }
   penny-7:
-    location: world,5031,63,5016
+    location: world,5017,67,5045
     vault: 7
     owned_variable: vaultPenny7
     price: { currency: bankPenny, amount: 100000000, label: Pennies }
   penny-8:
-    location: world,5031,63,5018
+    location: world,5017,67,5044
     vault: 8
     owned_variable: vaultPenny8
     price: { currency: bankPenny, amount: 1000000000, label: Pennies }
   # Silver
   silver-1:
-    location: world,5029,60,5020
+    location: world,5017,64,5043
     vault: 11
     owned_variable: vaultSilver1
     price: { currency: bankSilver, amount: 25, label: Silver }
   silver-2:
-    location: world,5027,60,5020
+    location: world,5017,64,5042
     vault: 12
     owned_variable: vaultSilver2
     price: { currency: bankSilver, amount: 100, label: Silver }
   silver-3:
-    location: world,5029,61,5020
+    location: world,5017,65,5043
     vault: 13
     owned_variable: vaultSilver3
     price: { currency: bankSilver, amount: 500, label: Silver }
   silver-4:
-    location: world,5027,61,5020
+    location: world,5017,65,5042
     vault: 14
     owned_variable: vaultSilver4
     price: { currency: bankSilver, amount: 2500, label: Silver }
   silver-5:
-    location: world,5029,62,5020
+    location: world,5017,66,5043
     vault: 15
     owned_variable: vaultSilver5
     price: { currency: bankSilver, amount: 10000, label: Silver }
   silver-6:
-    location: world,5027,62,5020
+    location: world,5017,66,5042
     vault: 16
     owned_variable: vaultSilver6
     price: { currency: bankSilver, amount: 50000, label: Silver }
   silver-7:
-    location: world,5029,63,5020
+    location: world,5017,67,5043
     vault: 17
     owned_variable: vaultSilver7
     price: { currency: bankSilver, amount: 250000, label: Silver }
   silver-8:
-    location: world,5027,63,5020
+    location: world,5017,67,5042
     vault: 18
     owned_variable: vaultSilver8
     price: { currency: bankSilver, amount: 1000000, label: Silver }
   # Gold
   gold-1:
-    location: world,5025,60,5018
+    location: world,5017,64,5041
     vault: 21
     owned_variable: vaultGold1
     price: { currency: bankGold, amount: 1, label: Gold }
   gold-2:
-    location: world,5025,60,5016
+    location: world,5017,64,5040
     vault: 22
     owned_variable: vaultGold2
     price: { currency: bankGold, amount: 5, label: Gold }
   gold-3:
-    location: world,5025,61,5018
+    location: world,5017,65,5041
     vault: 23
     owned_variable: vaultGold3
     price: { currency: bankGold, amount: 25, label: Gold }
   gold-4:
-    location: world,5025,61,5016
+    location: world,5017,65,5040
     vault: 24
     owned_variable: vaultGold4
     price: { currency: bankGold, amount: 100, label: Gold }
   gold-5:
-    location: world,5025,62,5018
+    location: world,5017,66,5041
     vault: 25
     owned_variable: vaultGold5
     price: { currency: bankGold, amount: 500, label: Gold }
   gold-6:
-    location: world,5025,62,5016
+    location: world,5017,66,5040
     vault: 26
     owned_variable: vaultGold6
     price: { currency: bankGold, amount: 2500, label: Gold }
   gold-7:
-    location: world,5025,63,5016
+    location: world,5017,67,5041
     vault: 27
     owned_variable: vaultGold7
     price: { currency: bankGold, amount: 10000, label: Gold }
   gold-8:
-    location: world,5025,63,5018
+    location: world,5017,67,5040
     vault: 28
     owned_variable: vaultGold8
     price: { currency: bankGold, amount: 55555, label: Gold }
   # Existing skill "Vault Master": chest N needs rank N.
   skill-1:
-    location: world,5031,64,5016
+    location: world,5017,68,5045
     vault: 31
     requires: { variable: skillExistingTier7A, min: 1 }
   skill-2:
-    location: world,5031,64,5018
+    location: world,5017,68,5044
     vault: 32
     requires: { variable: skillExistingTier7A, min: 2 }
   skill-3:
-    location: world,5029,64,5020
+    location: world,5017,68,5043
     vault: 33
     requires: { variable: skillExistingTier7A, min: 3 }
   skill-4:
-    location: world,5027,64,5020
+    location: world,5017,68,5042
     vault: 34
     requires: { variable: skillExistingTier7A, min: 4 }
   skill-5:
-    location: world,5025,64,5018
+    location: world,5017,68,5041
     vault: 35
     requires: { variable: skillExistingTier7A, min: 5 }
   skill-6:
-    location: world,5025,64,5016
+    location: world,5017,68,5040
     vault: 36
     requires: { variable: skillExistingTier7A, min: 6 }
   # Vault Master ranks 7-10 (vaults 37-40) have no chests yet. Until SneakyLeveling is live, add them as
@@ -172,9 +172,10 @@ chests:
   #   location: world,x,y,z
   #   vault: 37
   #   existing_only: true
-  bag:
-    location: world,5025,61,5014
-    vault: 54
+  # The old free bag chest (vault 54) is switched off on Live; uncomment to bring it back.
+  # bag:
+  #   location: world,5025,61,5014
+  #   vault: 54
 
 messages:
   too_poor: "&7You are too poor to upgrade this &6Vault&7!"
@@ -190,7 +191,7 @@ messages:
 # Toasts (too poor, requirement). item_model: a namespaced item model id, or '' for the material's own look.
 toast_icon:
   material: JIGSAW
-  item_model: ''
+  item_model: lom:icons/vaultmaster
 
 sounds:
   open: { sound: block.chest.open, volume: 0.4, pitch: 1.0 }
@@ -203,19 +204,19 @@ sounds:
 menu:
   title: "&6Buy Vault?"
   background:
-    slot: -1
-    material: PAPER
-    item_model: ''
+    slot: 0
+    material: JIGSAW
+    item_model: lom:gui/confirmpurchase
   confirm:
     slot: 3
-    material: LIME_STAINED_GLASS_PANE
-    item_model: ''
-    name: "&aUnlock Vault?"
+    material: RABBIT_FOOT
+    item_model: lom:invisible
+    name: "&aYes"
     lore:
       - "&eRequires &6{price} {currency}&e!"
       - "&eMoney must be in bank!"
   cancel:
     slot: 5
-    material: RED_STAINED_GLASS_PANE
-    item_model: ''
+    material: RABBIT_FOOT
+    item_model: lom:invisible
     name: "&cNo"
