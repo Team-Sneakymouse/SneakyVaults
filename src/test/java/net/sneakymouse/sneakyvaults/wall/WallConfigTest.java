@@ -31,7 +31,7 @@ class WallConfigTest {
         assertEquals(java.util.List.of(), wall.errors());
         assertFalse(wall.enabled(), "ships disabled until the MagicSpells spells are removed");
         assertEquals("skillTradingTier4A", wall.discountVariable());
-        assertEquals(31, wall.chests().size());
+        assertEquals(30, wall.chests().size());
 
         Set<Integer> vaults = new HashSet<>();
         for(WallChest chest : wall.chests().values()) vaults.add(chest.vault());
@@ -41,13 +41,13 @@ class WallConfigTest {
             assertTrue(vaults.contains(20 + i));
         }
         for(int i = 31; i <= 36; i++) assertTrue(vaults.contains(i));
-        assertTrue(vaults.contains(54));
+        assertFalse(vaults.contains(54), "the bag chest is off on Live");
 
         WallChest penny1 = wall.chests().get("penny-1");
         assertEquals("world", penny1.world());
-        assertEquals(5031, penny1.x());
-        assertEquals(60, penny1.y());
-        assertEquals(5016, penny1.z());
+        assertEquals(5017, penny1.x());
+        assertEquals(64, penny1.y());
+        assertEquals(5045, penny1.z());
         assertEquals("vaultPenny1", penny1.ownedVariable());
         assertEquals(new WallChest.Price("bankPenny", 100, "Pennies"), penny1.price());
         assertEquals(1000000000L, wall.chests().get("penny-8").price().amount());
@@ -59,11 +59,8 @@ class WallConfigTest {
         assertEquals("skillExistingTier7A", skill6.requires().variable());
         assertEquals(6, skill6.requires().min());
         assertNull(skill6.price());
-
-        WallChest bag = wall.chests().get("bag");
-        assertNull(bag.price());
-        assertNull(bag.requires());
-        assertFalse(bag.existingOnly());
+        assertEquals(68, skill6.y());
+        assertEquals(5040, skill6.z());
     }
 
     @Test
